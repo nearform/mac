@@ -14,3 +14,4 @@ export {
 } from "./auth.js";
 export { createInstallationOctokit, createTokenOctokit } from "./client.js";
 export { createGithubReadTools, type GithubReadTools } from "./tools.js";
+export { createGithubReviewTools, type GithubReviewTools } from "./write-tools.js";

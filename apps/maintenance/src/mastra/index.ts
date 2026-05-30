@@ -3,6 +3,8 @@ import { LibSQLStore } from "@mastra/libsql";
 import { PinoLogger } from "@mastra/loggers";
 import { dbUrl } from "./config.js";
 import { createChatAgent } from "./agents/chat.js";
+import { createSandboxProbeAgent } from "./agents/sandbox-probe.js";
+import { prReviewWorkflow } from "./workflows/pr-review.js";
 
 /**
  * Last Light maintenance platform — Mastra entry point.
@@ -20,6 +22,9 @@ export const mastra = new Mastra({
   logger: new PinoLogger({ name: "lastlight", level: "info" }),
   agents: {
     chat: createChatAgent(),
+    sandboxProbe: createSandboxProbeAgent(),
   },
-  workflows: {},
+  workflows: {
+    "pr-review": prReviewWorkflow,
+  },
 });

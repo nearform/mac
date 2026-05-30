@@ -56,6 +56,12 @@ Install warns; build/typecheck pass. Revisit if zod-schema tools misbehave at ru
 - **`createTool` execute signature** — `(inputData, context) =>`, input is the FIRST arg
   (not `{ context }` destructuring). The plan's earlier `{ context }` form was wrong.
 - **`new Agent` requires `id`** — not just `name`.
+- **Workspace/Sandbox live in `@mastra/core/workspace`** — `Workspace`, `LocalFilesystem`,
+  `LocalSandbox` are exported from that subpath (NOT the main `@mastra/core` entry, and the
+  `@mastra/workspace-*` packages aren't published at this version). `Agent({ workspace })`
+  auto-adds `execute_command`+file tools. `createStep`/`createWorkflow` from
+  `@mastra/core/workflows`; `execute: async ({ inputData }) => ...`; build with
+  `createWorkflow({id,inputSchema,outputSchema}).then(step).commit()`.
 - **Eager secret reads crash boot** — the chat agent built the Octokit (which reads the PEM)
   at module load, so a missing/relative PEM took down the whole server. Fixed by (a) wrapping
   GitHub-tool init in try/catch (boot never fails on an optional secret), and (b) copying the
