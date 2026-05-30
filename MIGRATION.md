@@ -53,6 +53,14 @@ Install warns; build/typecheck pass. Revisit if zod-schema tools misbehave at ru
   instead of `timeout`/chained `sleep`.
 - **`mastra dev|build` need `-d src/mastra`** — entry isn't at the default path; the app
   scripts pass `-d src/mastra`.
+- **`createTool` execute signature** — `(inputData, context) =>`, input is the FIRST arg
+  (not `{ context }` destructuring). The plan's earlier `{ context }` form was wrong.
+- **`new Agent` requires `id`** — not just `name`.
+- **Eager secret reads crash boot** — the chat agent built the Octokit (which reads the PEM)
+  at module load, so a missing/relative PEM took down the whole server. Fixed by (a) wrapping
+  GitHub-tool init in try/catch (boot never fails on an optional secret), and (b) copying the
+  PEM to an absolute `secrets/app.pem` and pointing `GITHUB_APP_PRIVATE_KEY_PATH` at it.
+  `secrets/` is gitignored.
 - **Turbo `WARNING IO error: No such file or directory (os error 2)`** — emitted by Turbo's
   cache writer; cosmetic, the build still succeeds. We **removed Turbo entirely** (it's a
   monorepo task runner, not a bundler — unrelated to vite/turbopack). Root `package.json`

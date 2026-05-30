@@ -1,0 +1,23 @@
+{
+  "name": "@lastlight/github",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "GitHub App auth, permission profiles, and read-only Mastra tools (ported from lastlight).",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@mastra/core": "^1.37.1",
+    "@octokit/auth-app": "^7.1.0",
+    "octokit": "^5.0.5",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

@@ -13,6 +13,7 @@
   "dependencies": {
     "@ai-sdk/anthropic": "^3.0.81",
     "@ai-sdk/openai": "^3.0.67",
+    "@lastlight/github": "workspace:*",
     "@mastra/core": "^1.37.1",
     "@mastra/libsql": "^1.11.1",
     "@mastra/loggers": "^1.1.1",

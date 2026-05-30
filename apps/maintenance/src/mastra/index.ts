@@ -1,26 +1,25 @@
 import { Mastra } from "@mastra/core";
 import { LibSQLStore } from "@mastra/libsql";
 import { PinoLogger } from "@mastra/loggers";
+import { dbUrl } from "./config.js";
+import { createChatAgent } from "./agents/chat.js";
 
 /**
  * Last Light maintenance platform — Mastra entry point.
  *
- * Milestone 1 skeleton: storage + logger only. Agents, workflows, tools,
- * connectors (GitHub webhook / Slack / cron) and server.apiRoutes are layered
- * in over the following milestones. See ../../../MIGRATION.md.
+ * M2: chat agent + memory + read-only GitHub tools. Workflows, connectors
+ * (GitHub webhook / Slack / cron) and server.apiRoutes land in later
+ * milestones. See ../../../MIGRATION.md.
+ *
+ * The SQLite file is resolved to an absolute path (see ./config.ts) so it works
+ * regardless of process cwd — `mastra dev`/`build` run from .mastra/output where
+ * a relative "./data/..." would hit libsql "error 14".
  */
-
-// Resolve the SQLite file to an absolute path so it works regardless of the
-// process cwd. `mastra dev` and `mastra build` run from .mastra/output, where a
-// relative "./data/..." would point at a non-existent dir (libsql error 14).
-// Override with LASTLIGHT_DB_URL (e.g. a libsql:// URL) in production.
-const dbUrl =
-  process.env.LASTLIGHT_DB_URL ??
-  `file:${process.env.LASTLIGHT_STATE_DIR ?? process.cwd()}/lastlight.db`;
-
 export const mastra = new Mastra({
-  storage: new LibSQLStore({ id: "lastlight", url: dbUrl }),
+  storage: new LibSQLStore({ id: "lastlight", url: dbUrl() }),
   logger: new PinoLogger({ name: "lastlight", level: "info" }),
-  agents: {},
+  agents: {
+    chat: createChatAgent(),
+  },
   workflows: {},
 });
