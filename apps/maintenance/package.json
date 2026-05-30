@@ -1,0 +1,28 @@
+{
+  "name": "@lastlight/maintenance",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Last Light maintenance platform — the deployable Mastra unit.",
+  "scripts": {
+    "dev": "mastra dev -d src/mastra",
+    "build": "mastra build -d src/mastra",
+    "start": "node .mastra/output/index.mjs",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.81",
+    "@ai-sdk/openai": "^3.0.67",
+    "@mastra/core": "^1.37.1",
+    "@mastra/libsql": "^1.11.1",
+    "@mastra/loggers": "^1.1.1",
+    "@mastra/memory": "^1.20.0",
+    "ai": "^6.0.193",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "mastra": "^1.10.2",
+    "typescript": "^5.7.0"
+  }
+}

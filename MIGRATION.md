@@ -1,0 +1,79 @@
+# Last Light → Mastra migration log
+
+This repo re-implements [`lastlight`](../lastlight) (a GitHub repo-maintenance agent) as an
+idiomatic [Mastra](https://mastra.ai) v1 app. We copy code/config from lastlight as needed,
+keep things as close to vanilla Mastra as possible, and **drop misfits with a note here**.
+
+Source of truth for lastlight's behavior: `../lastlight/spec/` and `../lastlight/CLAUDE.md`.
+
+## Status
+
+- **M1 — Scaffold (done):** pnpm + turbo monorepo; `apps/maintenance` is the deployable
+  Mastra unit. `pnpm -C apps/maintenance build` (= `mastra build`) produces a Hono server in
+  `.mastra/output/`. Typecheck clean. Assets (prompts, skills, agent-context, `.env`) copied
+  from lastlight.
+- M2–M7: see `../../.claude/plans/ok-we-have-a-splendid-fairy.md`.
+
+## Pinned Mastra API signatures (verified against installed packages, not docs)
+
+Installed: `@mastra/core` **1.37.1**, `@mastra/libsql` 1.11.1, `@mastra/loggers` 1.1.1,
+`@mastra/memory` 1.20.0, `mastra` (CLI) 1.10.2, `ai` 6.x, `@ai-sdk/anthropic` 3.x.
+
+- **Entry:** `new Mastra({ storage, logger, agents, workflows, /* server, observability */ })`
+  from `@mastra/core`.
+- **Server routes:** `registerApiRoute(path, options)` from `@mastra/core/server` —
+  **path is the FIRST positional arg**, not a field in options. Options:
+  `{ method: 'GET'|'POST'|'PUT'|'DELETE'|'PATCH'|'ALL', handler, middleware?, openapi?, requestContext? }`.
+  `handler` is a Hono `Handler` (receives Hono `Context`). Wire via `server: { apiRoutes: [...] }`
+  on the `Mastra` constructor. (The plan's earlier `registerApiRoute({ path, ... })` form is wrong.)
+- **Workflows:** `createWorkflow` / `createStep` from `@mastra/core/workflows`. Chaining
+  confirmed present (`.then`, etc.); exact loop/branch method names to be pinned in M3/M4.
+- **Tools:** `createTool` from `@mastra/core/tools`.
+- **Agent:** `Agent` from `@mastra/core/agent`.
+- **Storage:** `LibSQLStore` from `@mastra/libsql` (`new LibSQLStore({ url: 'file:./data/mastra.db' })`).
+- **Logger:** `PinoLogger` from `@mastra/loggers`.
+- Notable subpaths in `@mastra/core`: `./agent`, `./agent/durable`, `./workflows`,
+  `./workflows/evented`, `./tools`, `./memory`, `./server`, `./tool-loop-agent`.
+
+### Peer-dep note
+`@mastra/core` pulls AI-SDK v4 utils that peer-depend on `zod@^3`, but we use `zod@4`.
+Install warns; build/typecheck pass. Revisit if zod-schema tools misbehave at runtime.
+
+## Component mapping (lastlight → here)
+
+| Lastlight | Here | State |
+|---|---|---|
+| `pi-ai` chat | Mastra `Agent` + `Memory` (LibSQL) | M2 |
+| `agentic-pi`/gondolin coding agent | `mastracode` (npm) / our `Agent` over a Mastra Workspace sandbox | M3 |
+| YAML runner (linear/DAG/loops/gates) | `createWorkflow`/`createStep` + `suspend()`/`resume()` | M3/M4 |
+| router/classifier/screener | ported into `apps/maintenance/src/mastra/` | M5 |
+| `git-auth.ts`/`profiles.ts` + `mcp-github-app` | `packages/github` (octokit + token mint) | M3/M5 |
+| Hono server + admin + webhook | Mastra `server.apiRoutes` (`registerApiRoute`) | M5 |
+| Slack Socket Mode (`@slack/bolt`) | Bolt service beside the Mastra server | M5 |
+| Cron (`croner`) | native workflow `schedule` + repo fan-out | M6 |
+| StateDb / JSONL shim / dashboard | Mastra storage + AI tracing in Studio | ongoing |
+| config overlay + `default.yaml` | `.env` + a single config file | ongoing |
+
+## Dropped / deferred (with reasons)
+
+- **Network egress firewall** (gondolin `allowedHttpHosts`; docker SNI-peek + coredns
+  sinkhole; SSRF floor) — **deferred** per spike scope. Sandbox runs with provider defaults
+  for now; re-add before any production use.
+- **gondolin QEMU sandbox + docker firewall sidecars** — replaced by `mastracode`/Mastra
+  Workspace sandbox (no `/dev/kvm` dependency).
+- **JSONL envelope shim + `SessionReader`** — replaced by Mastra built-in AI tracing (Studio).
+- **Custom React/Vite admin dashboard** — Mastra Studio (`mastra dev`) for now; revisit.
+- **DAG runner, restart-count circuit breaker, daily/hourly stat rollups** — port only if a
+  workflow needs them.
+- **Config overlay/instance layering** — simplified to `.env` + one config file.
+- **`code.mastra.ai` hosted app / `mastra-ai/code` repo** — the latter is private/non-existent;
+  we use the published `mastracode` package + `@mastra/*` from npm instead.
+
+## Env (copied from lastlight `.env`)
+
+`apps/maintenance/.env` carries: `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`,
+`GITHUB_APP_ID`, `GITHUB_APP_INSTALLATION_ID`, `GITHUB_APP_PRIVATE_KEY_PATH`
+(`./secrets/app.pem`), `WEBHOOK_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`,
+`OPENCODE_MODEL` (`anthropic/claude-sonnet-4-6`), `OPENCODE_MODELS`, `LASTLIGHT_SANDBOX`.
+The PEM itself is **not** copied yet (add `secrets/app.pem` when wiring GitHub in M3/M5).
+Legacy `OPENCODE_*` names are kept as-is for now; may rename to `LASTLIGHT_*` later.

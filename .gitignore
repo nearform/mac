@@ -1,0 +1,12 @@
+node_modules/
+dist/
+.mastra/
+.turbo/
+*.log
+.env
+.env.*
+!.env.example
+data/
+*.db
+*.db-*
+.DS_Store

@@ -1,0 +1,24 @@
+{
+  "name": "lastlight-mastra",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Last Light reimagined as an idiomatic Mastra app (spike). GitHub repo-maintenance agent.",
+  "packageManager": "pnpm@10.18.0",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test"
+  },
+  "devDependencies": {
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.0"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["better-sqlite3", "esbuild", "protobufjs"]
+  }
+}
