@@ -53,6 +53,11 @@ Install warns; build/typecheck pass. Revisit if zod-schema tools misbehave at ru
   instead of `timeout`/chained `sleep`.
 - **`mastra dev|build` need `-d src/mastra`** — entry isn't at the default path; the app
   scripts pass `-d src/mastra`.
+- **Turbo `WARNING IO error: No such file or directory (os error 2)`** — emitted by Turbo's
+  cache writer; cosmetic, the build still succeeds. We **removed Turbo entirely** (it's a
+  monorepo task runner, not a bundler — unrelated to vite/turbopack). Root `package.json`
+  scripts now delegate directly: `pnpm -C apps/maintenance <script>`. Mastra owns its own
+  server bundler (Rollup/esbuild) and ships a prebuilt Studio UI, so vite is not involved.
 
 Verified green: `pnpm -C apps/maintenance build` → `.mastra/output/index.mjs`;
 `node --env-file=.env .mastra/output/index.mjs` boots ("Mastra API running at

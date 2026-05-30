@@ -9,13 +9,12 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
-    "typecheck": "turbo run typecheck",
-    "test": "turbo run test"
+    "dev": "pnpm -C apps/maintenance dev",
+    "build": "pnpm -C apps/maintenance build",
+    "start": "pnpm -C apps/maintenance start",
+    "typecheck": "pnpm -C apps/maintenance typecheck"
   },
   "devDependencies": {
-    "turbo": "^2.5.0",
     "typescript": "^5.7.0"
   },
   "pnpm": {
