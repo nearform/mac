@@ -39,6 +39,25 @@ Installed: `@mastra/core` **1.37.1**, `@mastra/libsql` 1.11.1, `@mastra/loggers`
 `@mastra/core` pulls AI-SDK v4 utils that peer-depend on `zod@^3`, but we use `zod@4`.
 Install warns; build/typecheck pass. Revisit if zod-schema tools misbehave at runtime.
 
+## Gotchas hit during M1 (and fixes)
+
+- **`pnpm: command not found`** — pnpm isn't globally installed; this machine uses nvm.
+  `mastra build`'s deploy step shells out to `pnpm install`, so pnpm must be on PATH.
+  Fix: `corepack enable` (installs a `pnpm` shim into the active nvm node `bin/`). Use
+  `corepack pnpm …` if you skip that.
+- **libsql "error 14" (`Unable to open ./data/mastra.db`)** — LibSQL creates the file but
+  **not** the parent dir, and `mastra dev`/`build` run from `.mastra/output`, so a relative
+  `./data/...` resolves to a missing dir. Fix: entry resolves an **absolute** db path from
+  `LASTLIGHT_DB_URL` / `LASTLIGHT_STATE_DIR` (set to an absolute `data/` in `.env`).
+- **`timeout` not on macOS** — use Bash `run_in_background` + a `Monitor`/until-loop probe
+  instead of `timeout`/chained `sleep`.
+- **`mastra dev|build` need `-d src/mastra`** — entry isn't at the default path; the app
+  scripts pass `-d src/mastra`.
+
+Verified green: `pnpm -C apps/maintenance build` → `.mastra/output/index.mjs`;
+`node --env-file=.env .mastra/output/index.mjs` boots ("Mastra API running at
+http://localhost:4111/api"); `/api/agents` and `/api/workflows` return `{}`.
+
 ## Component mapping (lastlight → here)
 
 | Lastlight | Here | State |
