@@ -5,5 +5,13 @@
     "rootDir": "src"
   },
   "include": ["src/**/*.ts"],
-  "exclude": ["node_modules", "dist", ".mastra"]
+  "exclude": [
+    "node_modules",
+    "dist",
+    ".mastra",
+    "workspaces",
+    "data",
+    "**/workspaces/**",
+    "src/mastra/public"
+  ]
 }

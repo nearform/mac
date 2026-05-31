@@ -9,12 +9,18 @@
     "node": ">=22"
   },
   "scripts": {
+    "predev": "pnpm -C packages/github build",
     "dev": "pnpm -C apps/maintenance dev",
-    "build": "pnpm -C apps/maintenance build",
+    "dev:tunnel": "pnpm -C packages/github build && concurrently -k -n dev,tunnel -c cyan,magenta \"pnpm -C apps/maintenance dev\" \"pnpm tunnel\"",
+    "prestart": "pnpm -C packages/github build",
     "start": "pnpm -C apps/maintenance start",
-    "typecheck": "pnpm -C apps/maintenance typecheck"
+    "studio": "pnpm -C apps/maintenance studio",
+    "typecheck": "pnpm -C apps/maintenance typecheck",
+    "tunnel": "node scripts/tunnel.mjs"
   },
   "devDependencies": {
+    "concurrently": "^9.1.0",
+    "localtunnel": "^2.0.2",
     "typescript": "^5.7.0"
   },
   "pnpm": {

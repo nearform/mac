@@ -12,6 +12,7 @@ prompts/                 # phase prompt templates (copied from lastlight)
 skills/                  # agent skills (copied from lastlight)
 agent-context/           # persona/rules prepended to agent sessions (copied from lastlight)
 MIGRATION.md             # mapping, pinned API signatures, dropped/deferred log
+docs/                    # design docs, including the reusable package refactor
 ```
 
 ## Develop
@@ -26,3 +27,7 @@ corepack pnpm -C apps/maintenance typecheck
 `apps/maintenance/.env` holds service config (Anthropic/OpenRouter keys, GitHub App, Slack,
 models) copied from lastlight. See `MIGRATION.md` for what's intentionally dropped/deferred
 in this spike (notably the network-egress firewall).
+
+## Design
+
+- [MAC Package Refactor](docs/mastra-package-refactor.md)
