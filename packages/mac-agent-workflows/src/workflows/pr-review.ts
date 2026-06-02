@@ -59,6 +59,13 @@ export interface PrReviewDeps {
   ) => Promise<void>;
 }
 
+/**
+ * Skills the PR reviewer loads (per-step policy, owned here in the workflow).
+ * The reviewer has a workspace, so these arrive as `skill`/`skill_read`/
+ * `skill_search` tools scoped to just this set.
+ */
+const REVIEWER_SKILLS = ["github-code-review", "codebase-inspection"] as const;
+
 export function createPrReviewWorkflow(deps: PrReviewDeps): Workflow {
   // A configured GitHub bundle always carries functions.
   const fns = deps.github.functions!;
@@ -84,7 +91,7 @@ export function createPrReviewWorkflow(deps: PrReviewDeps): Workflow {
       const result = await deps.reviewer.generate(
         `Review pull request ${owner}/${repo}#${number}. Fetch the diff, then ` +
           `produce your VERDICT line and review body.`,
-        { requestContext: buildAgentContext(taskId, token), tracingContext },
+        { requestContext: buildAgentContext(taskId, token, REVIEWER_SKILLS), tracingContext },
       );
 
       const { event, body } = parseVerdict(result.text ?? "");

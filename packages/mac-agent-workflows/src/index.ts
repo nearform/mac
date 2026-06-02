@@ -5,6 +5,11 @@ export {
   type PromptResolver,
 } from "./loaders/prompts.js";
 export { loadAgentContext } from "./loaders/agent-context.js";
+export {
+  skillsContainerDir,
+  skillsLocation,
+  type SkillsLocation,
+} from "./loaders/skills.js";
 
 // Agent factories + the agents() selector
 export {
@@ -22,7 +27,13 @@ export {
 } from "./agents/index.js";
 
 // Per-run request-context plumbing for the registered coding agents
-export { buildAgentContext, RC_TASK_ID, RC_TOKEN } from "./agents/runtime.js";
+export {
+  buildAgentContext,
+  RC_TASK_ID,
+  RC_TOKEN,
+  RC_SKILLS,
+  resolveWorkspace,
+} from "./agents/runtime.js";
 
 // Structured output parsers
 export { parseVerdict } from "./parsers/verdict.js";

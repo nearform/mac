@@ -2,7 +2,7 @@ import { Agent } from "@mastra/core/agent";
 import type { RequestContext } from "@mastra/core/request-context";
 import { defaultPromptResolver } from "../loaders/prompts.js";
 import { persona } from "./persona.js";
-import { RC_TASK_ID, RC_TOKEN } from "./runtime.js";
+import { RC_TOKEN, resolveWorkspace } from "./runtime.js";
 import type { CodingAgentDeps } from "./types.js";
 
 /**
@@ -29,12 +29,8 @@ export function createReviewerAgent(deps: CodingAgentDeps): Agent {
       const token = requestContext.get(RC_TOKEN);
       return typeof token === "string" && token ? deps.createReadTools({ token }) : {};
     },
-    workspace: ({ requestContext }: { requestContext: RequestContext }) => {
-      const taskId = requestContext.get(RC_TASK_ID);
-      return typeof taskId === "string" && taskId
-        ? deps.workspaceFactory.create(taskId)
-        : undefined;
-    },
+    workspace: ({ requestContext }: { requestContext: RequestContext }) =>
+      resolveWorkspace(deps.workspaceFactory, requestContext),
     defaultOptions: { maxSteps: deps.maxSteps ?? 40 },
   });
 }

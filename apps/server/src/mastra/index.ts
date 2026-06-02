@@ -85,7 +85,10 @@ async function buildPreset(): Promise<MacPresetSlice> {
   const sc = slackConfig();
   const mac = await createMacApp({
     model: defaultModel(),
-    workspaceFactory: { create: (taskId: string) => createCodeWorkspace(taskId) },
+    workspaceFactory: {
+      create: (taskId: string, options?: { token?: string; skills?: string[] }) =>
+        createCodeWorkspace(taskId, options),
+    },
     // Signed ✅/❌ approval links for the build workflow's post_architect gate
     // (reads publicBaseUrl + HMAC from env — must stay app-side).
     approvalLinks: { link: (runId, decision) => approvalLink(runId, decision) },

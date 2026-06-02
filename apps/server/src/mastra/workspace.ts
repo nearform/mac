@@ -1,4 +1,10 @@
-import { Workspace, LocalFilesystem, LocalSandbox } from "@mastra/core/workspace";
+import {
+  Workspace,
+  LocalFilesystem,
+  LocalSandbox,
+  LocalSkillSource,
+} from "@mastra/core/workspace";
+import { skillsLocation } from "@nearform/mac-agent-workflows";
 import { mkdirSync } from "node:fs";
 import { resolve } from "node:path";
 
@@ -15,13 +21,37 @@ import { resolve } from "node:path";
  *
  * @param taskDir sub-directory name under the workspaces root (e.g. a task id),
  *   giving each run an isolated checkout dir.
+ * @param options.skills skill folder names to scope this workspace to. The
+ *   workflow STEP decides the list (per-step skill policy); we resolve it to the
+ *   package's skills container via `skillsLocation` and wire a `LocalSkillSource`
+ *   so the agent gets `skill`/`skill_read`/`skill_search` for just those skills.
+ *   Skills live OUTSIDE the per-task checkout (a `LocalSkillSource`, not the
+ *   workspace filesystem), so they don't depend on what the run cloned.
  */
-export function createCodeWorkspace(taskDir: string): Workspace {
+export function createCodeWorkspace(
+  taskDir: string,
+  options?: { token?: string; skills?: string[] },
+): Workspace {
   const root = process.env.MAC_WORKSPACES_DIR
     ? resolve(process.env.MAC_WORKSPACES_DIR)
     : resolve(process.cwd(), "workspaces");
   const base = resolve(root, taskDir);
   mkdirSync(base, { recursive: true });
+
+  // Per-step skill scoping: when the step requested skills, point the workspace
+  // at the package's skills container (a read-only LocalSkillSource) and expose
+  // only the requested skill folders. No skills requested → none loaded.
+  const skills = options?.skills ?? [];
+  const skillWiring =
+    skills.length > 0
+      ? (() => {
+          const loc = skillsLocation(skills);
+          return {
+            skillSource: new LocalSkillSource({ basePath: loc.basePath }),
+            skills: loc.paths,
+          };
+        })()
+      : {};
 
   return new Workspace({
     filesystem: new LocalFilesystem({ basePath: base }),
@@ -33,6 +63,7 @@ export function createCodeWorkspace(taskDir: string): Workspace {
       // still possible via executeCommand options. Configurable for CI.
       timeout: Number(process.env.MAC_SANDBOX_TIMEOUT_MS ?? 15 * 60_000),
     }),
+    ...skillWiring,
   });
 }
 

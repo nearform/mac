@@ -14,7 +14,18 @@ import type { Workspace } from "@mastra/core/workspace";
  * read-only no-op for workflows that don't execute code).
  */
 export interface WorkspaceFactory {
-  create(taskId: string, options?: { token?: string }): Workspace;
+  create(
+    taskId: string,
+    options?: {
+      token?: string;
+      /**
+       * Skill folder names to scope this workspace to (per-step skill loading).
+       * The app resolves them against the skills container and wires the
+       * Workspace's skill source. Empty/omitted → no skills for this step.
+       */
+      skills?: string[];
+    },
+  ): Workspace;
 }
 
 /** Builds signed approval/reject links for human-in-the-loop gates. */

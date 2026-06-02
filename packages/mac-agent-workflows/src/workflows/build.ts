@@ -67,6 +67,23 @@ import {
  * .then()/.dountil() chain). The first step populates it; later steps augment it.
  */
 
+// ── Per-step skill policy ────────────────────────────────────────────────────
+//
+// Which skills each build step's agent loads. This is the WORKFLOW's call (the
+// step owns its altitude), not the skill loader's: each step passes its set to
+// `buildAgentContext`, the agent's workspace resolver forwards it to the
+// workspace factory, and the app wires only those skills. Keep each set tight.
+//
+// Note: the review step uses `build-reviewer`, which is workspace-less by design
+// (deterministic, diff-in-prompt), so it carries no skills here — review skills
+// apply to the PR `reviewer` in pr-review.ts.
+const SKILLS = {
+  guardrails: ["assure-guardrails"],
+  architect: ["architect", "codebase-inspection"],
+  executor: ["test-driven-development", "systematic-debugging", "codebase-inspection"],
+  fix: ["systematic-debugging", "test-driven-development"],
+} as const;
+
 // ── Schemas ────────────────────────────────────────────────────────────────
 
 const triggerSchema = z.object({
@@ -574,7 +591,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       const agent = deps.agents.byId("guardrails");
       const res = await agent.generate(
         `Run the pre-flight guardrails check on this checkout of ${inputData.owner}/${inputData.repo}.`,
-        { requestContext: buildAgentContext(taskId), tracingContext },
+        { requestContext: buildAgentContext(taskId, undefined, SKILLS.guardrails), tracingContext },
       );
       const { ready, report } = parseGuardrails(res.text ?? "");
 
@@ -634,7 +651,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
             ? `Guardrails report (test/lint/typecheck commands):\n${st.guardrailsReport}`
             : "",
         ].join("\n"),
-        { requestContext: buildAgentContext(st.taskId, token), tracingContext },
+        { requestContext: buildAgentContext(st.taskId, token, SKILLS.architect), tracingContext },
       );
       const plan = res.text ?? "";
       const result = { ...st, plan };
@@ -734,7 +751,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
           "ARCHITECT PLAN:",
           st.plan,
         ].join("\n"),
-        { requestContext: buildAgentContext(st.taskId), tracingContext },
+        { requestContext: buildAgentContext(st.taskId, undefined, SKILLS.executor), tracingContext },
       );
       const executorSummary = res.text ?? "";
       const result = { ...st, executorSummary, cycle: 0 };
@@ -808,7 +825,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
           "REVIEWER FEEDBACK:",
           st.reviewBody,
         ].join("\n"),
-        { requestContext: buildAgentContext(st.taskId), tracingContext },
+        { requestContext: buildAgentContext(st.taskId, undefined, SKILLS.fix), tracingContext },
       );
       await writeArtifact(
         ws,
