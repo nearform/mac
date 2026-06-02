@@ -8,6 +8,64 @@ MAC should become a reusable set of Mastra building blocks, not a single deploya
 
 This design keeps the current `apps/maintenance` app as the reference implementation while extracting reusable packages behind stable APIs.
 
+## Implementation Status & Reconciliation (2026-06-01)
+
+The refactor is implemented and green (`pnpm -r typecheck` + `pnpm test`, 82 tests). The four
+packages exist as designed, the dependency graph is acyclic (enforced by a test), and
+`apps/maintenance` is a thin consumer composed through `createMacApp`. This section records where
+the **shipped reality deliberately differs from the prose below**, so the rest of the doc can be
+read as design intent without being mistaken for a spec of current behavior.
+
+**Shipped as designed:** the four `@nearform/mac*` packages and subpath exports (`/core`,
+`/capabilities`); the capability/extension host (topological init ordering, cycle detection,
+capability preflight, duplicate-id guard with `overrides`, route/intent preflight); layered
+prompt + agent-context loaders via `import.meta.url`; PR-review and build workflow factories
+consuming **registered** agent instances; the deterministic dispatch router.
+
+**Shipped beyond the original prose:**
+- **`optional` capabilities.** `MacExtension` (and definitions) now support `optional?: Key[]` —
+  an ordering edge that does NOT fail preflight when no provider exists. `agents()` uses it for
+  GitHub, so the coding agents construct (read tools disabled) without a `github()` platform. This
+  is what lets the app run a **single** `createMacApp` path instead of a no-GitHub fallback branch.
+- **`agents({ use, models, maxSteps })`.** The selector threads a `maxSteps` step-budget into the
+  coding agents on the host path (previously only the bare-factory path honored it).
+- **Data-driven classifier — DONE.** The classifier prompt is assembled from the merged intent
+  catalogue (`createLlmClassifier({ intents })`). The caveat under "Routing and Classification"
+  ("`extraIntents` is inert until the classifier is data-driven") and the matching Open Question
+  are **resolved**; `extraIntents` and intent-keyed `overrideTargets` are live.
+
+**Descoped (the prose below over-promises these):**
+- **Transitive agent auto-enable: NOT implemented.** The host PREFLIGHTS that a workflow's
+  `requiredAgents` are registered and throws early if not — it does **not** auto-pull built-in
+  agents. The app enables the agents its workflows need explicitly. Read "Transitive agent
+  dependencies" as a possible future enhancement, not current behavior.
+- **Guarded agent proxy: NOT implemented.** The injected agent registry returns live agents by
+  property/`byId`; it does not throw on accessing an id outside `requiredAgents`. The
+  "honest tradeoff" paragraph describing a throwing proxy is aspirational.
+- **Skills: intentionally out of scope.** Per Phase 5a, the dormant root `/skills` was never
+  adopted; there is no skill loader and no `skills/` asset dir in any package. Ignore every
+  "Skill loader", `skills: ["pr-review"]`, and `skills/**/SKILL.md` reference below — only
+  `prompts/` and `agent-context/` exist. Revisit only if a real skill consumer appears.
+
+**Deferred phases (named, not started):**
+- **Phase 9 (MCP): manifest only.** `buildMcpSurface` computes a gated surface manifest (tested),
+  but no concrete `@mastra/mcp` server is constructed and `mcpServers` is empty (`TODO(MCP)`). The
+  embedded app path does not depend on it.
+- **Phase 10 (publish readiness): not started.** Packages are `private`, `0.0.0`, source-only
+  (`types`/`exports` → `./src/*.ts`, relying on the app's `transpilePackages`); no build/`dist`,
+  no `publishConfig`. External consumption outside this workspace's bundler does not work yet.
+
+**Naming.** Packages are `@nearform/mac*`. The reference app stays the lastlight-flavored consumer
+(`@lastlight/maintenance`, root workspace `lastlight-mastra`); `@lastlight/github` was renamed in
+place to `@nearform/mac-github` with no compatibility alias (that Open Question is resolved). The
+reusable packages still bake in some lastlight identity by deliberate, bounded choice: loader
+override env vars are now `MAC_*` (with `LASTLIGHT_*` accepted as aliases); the build workflow's
+per-run branch prefix is configurable via `BuildDeps.branding.branchPrefix` (default `lastlight`);
+the on-branch `.lastlight/` artifact dir and conventional-commit scopes remain fixed because the
+artifact dir is coupled to git exclude-pathspecs and is best parametrized alongside a build-workflow
+integration test; the `[lastlight-flag: …]` injection marker is a fixed internal contract with
+`agent-context/security.md` (not user config).
+
 ## Design Principles
 
 ### Workflows Orchestrate
@@ -439,6 +497,12 @@ Resolution order for key `reviewer`: `overrideDir/reviewer.md` → package `prom
 **Implementation warning:** the package default must resolve relative to the package's own compiled location via `import.meta.url`, **not** by walking `cwd`/relative candidate paths. The current `loadAgentContext()` guesses with `../../../../agent-context` and `process.cwd()` candidates — that breaks once the assets live in a package resolved from `node_modules`. Keep cwd-relative lookup only for the app-supplied `overrideDir`.
 
 #### Transitive agent dependencies
+
+> **Superseded — see "Implementation Status & Reconciliation".** What shipped is the *preflight*
+> half of this section only: the host validates each `requiredAgents` id is registered and throws
+> early if not. The transitive *auto-enable* and the throwing *guarded proxy* described below were
+> descoped — the app enables its workflows' agents explicitly. The text below is retained as the
+> intended future design.
 
 A workflow that `requires: [agentCapabilities]` cannot run without the concrete agent ids it uses. Each workflow definition declares those ids:
 
@@ -1022,9 +1086,12 @@ The host preflights every route target against the final registries before `runt
 
 Classifier configuration belongs to the router because it chooses intent. The agent-workflow package supplies default intents for its built-in capabilities; users add intents via `routing.classifier.extraIntents` without editing any prompt body.
 
-**Caveat — extra intents need a data-driven classifier.** Today the classifier (`engine/classifier.ts` + the `switch` in `engine/router.ts`) is a hand-written prompt over a *closed* intent enum. `extraIntents` only takes effect if the classifier prompt is **assembled from the merged intent catalogue** (each intent's `description`/`examples`) rather than hardcoded. Making the classifier prompt data-driven is its own work item — until it lands, `extraIntents` is inert. This is called out explicitly so "bring your own intent" is not mistaken for a free feature of the current classifier.
+**Caveat — RESOLVED (shipped).** This caveat is historical: the classifier is now data-driven. The
+host assembles the classifier prompt from the merged intent catalogue (`createLlmClassifier({ intents })`),
+so `extraIntents` and intent-keyed `overrideTargets` are live. The original wording is kept below for
+context. ~~Today the classifier (`engine/classifier.ts` + the `switch` in `engine/router.ts`) is a hand-written prompt over a *closed* intent enum. `extraIntents` only takes effect if the classifier prompt is **assembled from the merged intent catalogue** (each intent's `description`/`examples`) rather than hardcoded. Making the classifier prompt data-driven is its own work item — until it lands, `extraIntents` is inert.~~
 
-The same dependency applies to **intent-keyed `overrideTargets`**. An override on a deterministic event key (`github.pr_opened`) works today. An override on a *new* intent key (`slack.deploy`) only fires once the classifier can actually emit that intent — i.e. after the data-driven-classifier work lands. Overrides on intents the current classifier already produces (`slack.build`, `github.pr_fix`) work now.
+The same applies to **intent-keyed `overrideTargets`** — and, with the data-driven classifier now shipped, it works for *new* intents too. An override on a deterministic event key (`github.pr_opened`) works. An override on an intent key (`slack.deploy`, `slack.build`, `github.pr_fix`) fires as long as the classifier can emit that intent; because the classifier prompt is assembled from the merged intent catalogue, adding the intent via `routing.classifier.extraIntents` is enough for the override to take effect.
 
 In practical terms:
 
@@ -1670,14 +1737,19 @@ Context checkpoint:
 
 ## Open Questions
 
-- Should `classifier.ts`, `screen.ts`, and `llm.ts` live in the dependency-light core layer, or should core define interfaces while the preset layer wires default implementations?
-- Should Git helpers such as clone, branch, diff, commit, and push live in `@nearform/mac-agent-workflows`, `@nearform/mac-github`, or a future `@nearform/mac-git` package?
-- Should skills be published only inside `@nearform/mac-agent-workflows`, or should there also be a separate consumable skill bundle later?
-- How much backward compatibility should `@lastlight/github` retain once `@nearform/mac-github` exists?
-- Which workflows are safe enough to expose via MCP by default?
-- When (not whether) to make the classifier prompt data-driven so `routing.classifier.extraIntents` becomes live. Its own work item; tracked under "Routing and Classification".
+Still open:
 
-Resolved during this revision (recorded so they are not re-litigated):
+- Should `classifier.ts`, `screen.ts`, and `llm.ts` live in the dependency-light core layer, or should core define interfaces while the preset layer wires default implementations? (Shipped: implementations live in the host/preset layer (`@nearform/mac/host/classifier`); `/core` holds only the `MacClassifier` interface.)
+- Should Git helpers such as clone, branch, diff, commit, and push live in `@nearform/mac-agent-workflows`, `@nearform/mac-github`, or a future `@nearform/mac-git` package? (Currently in `@nearform/mac-agent-workflows/src/workflows/git.ts`.)
+- Which workflows are safe enough to expose via MCP by default? (Moot until Phase 9 constructs a real MCP server — currently manifest-only.)
+
+Resolved (see "Implementation Status & Reconciliation" for shipped behavior):
+
+- **Skills:** intentionally NOT adopted. No skill loader or `skills/` assets in any package; only `prompts/` and `agent-context/`. No separate skill bundle.
+- **`@lastlight/github` backward compatibility:** none — renamed in place to `@nearform/mac-github`, no alias kept.
+- **Data-driven classifier:** DONE. The classifier prompt is assembled from the merged intent catalogue, so `extraIntents` / intent-keyed `overrideTargets` are live.
+
+Resolved during the design revision (recorded so they are not re-litigated):
 
 - **Capability wiring:** single typed-key mechanism (`requires: CapabilityKey[]` + `registry.has()`), not a parallel string manifest with surface/uses granularity.
 - **Host config shape:** grouped `platforms` / `agents` / `workflows` keys with topological init ordering; not an order-sensitive flat `extensions` array.

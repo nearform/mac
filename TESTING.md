@@ -3,13 +3,13 @@
 ## Start the app (server + Studio)
 
 ```bash
-corepack pnpm -C apps/maintenance dev
+corepack pnpm dev   # (or: corepack pnpm -C apps/server dev)
 # Studio UI:   http://localhost:4111
 # REST API:    http://localhost:4111/api
 # OpenAPI:     http://localhost:4111/openapi.json   (Swagger: /swagger-ui)
 ```
 
-`apps/maintenance/.env` already carries the model key + GitHub App config. The
+`apps/server/.env` already carries the model key + GitHub App config. The
 GitHub App PEM lives at `secrets/app.pem` (gitignored).
 
 ---

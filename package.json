@@ -1,27 +1,30 @@
 {
-  "name": "lastlight-mastra",
+  "name": "mac-mastra",
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Last Light reimagined as an idiomatic Mastra app (spike). GitHub repo-maintenance agent.",
+  "description": "MAC (Mastra Agentic Coding) — reusable Mastra building blocks + a deployable reference app. GitHub repo-maintenance agent.",
   "packageManager": "pnpm@10.18.0",
   "engines": {
     "node": ">=22"
   },
   "scripts": {
-    "predev": "pnpm -C packages/github build",
-    "dev": "pnpm -C apps/maintenance dev",
-    "dev:tunnel": "pnpm -C packages/github build && concurrently -k -n dev,tunnel -c cyan,magenta \"pnpm -C apps/maintenance dev\" \"pnpm tunnel\"",
-    "prestart": "pnpm -C packages/github build",
-    "start": "pnpm -C apps/maintenance start",
-    "studio": "pnpm -C apps/maintenance studio",
-    "typecheck": "pnpm -C apps/maintenance typecheck",
+    "dev": "concurrently -k -n server,studio -c cyan,magenta \"pnpm -C apps/server dev\" \"pnpm -C apps/server studio\"",
+    "dev:server": "pnpm -C apps/server dev",
+    "dev:tunnel": "concurrently -k -n server,studio,tunnel -c cyan,magenta,yellow \"pnpm -C apps/server dev\" \"pnpm -C apps/server studio\" \"pnpm tunnel\"",
+    "start": "pnpm -C apps/server start",
+    "studio": "pnpm -C apps/server studio",
+    "cli": "pnpm -C packages/mac-cli start",
+    "typecheck": "pnpm -r typecheck",
+    "test": "vitest run",
+    "test:watch": "vitest",
     "tunnel": "node scripts/tunnel.mjs"
   },
   "devDependencies": {
     "concurrently": "^9.1.0",
     "localtunnel": "^2.0.2",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^3.0.0"
   },
   "pnpm": {
     "onlyBuiltDependencies": ["better-sqlite3", "esbuild", "protobufjs"]

@@ -134,3 +134,249 @@ warns; build/typecheck/runtime pass so far. Revisit if zod-schema tools misbehav
 `OPENAI_API_KEY` (active provider), and `LASTLIGHT_STATE_DIR` (absolute). The GitHub App PEM
 is at `secrets/app.pem` (gitignored). `LASTLIGHT_MODEL` overrides the default model
 (`openai/gpt-4o`). Legacy `OPENCODE_*`/`LASTLIGHT_MODEL` names from lastlight are tolerated.
+
+---
+
+# MAC Package Refactor
+
+> Source of package-boundary truth: [`docs/mastra-package-refactor.md`](docs/mastra-package-refactor.md).
+> This section records the migration state and the Phase 0 boundary inventory.
+
+The app is being refactored from a single deployable into a reusable set of Mastra
+building blocks under the `@nearform/*` scope:
+
+- `@nearform/mac` — shared contracts (`/core`: events, routing, capability + authoring
+  helpers) and the `createMacApp(...)` preset/host.
+- `@nearform/mac-github` — GitHub platform package (auth, tools, webhook connector).
+  Replaces `@lastlight/github`.
+- `@nearform/mac-slack` — Slack platform package (tools + Socket Mode connector).
+- `@nearform/mac-agent-workflows` — agents, workflow factories, and all markdown
+  instruction assets (`prompts/`, `skills/`, `agent-context/`).
+
+Dependency direction is one-way into `@nearform/mac/core`; the agent-workflow package may
+only `import type` the platform `/capabilities` contracts (no runtime platform deps).
+
+### Phase 10 — Publish readiness / compatibility
+
+- **`@lastlight/github` is fully replaced** by `@nearform/mac-github`. No compatibility
+  shim or alias package is retained — there is exactly one GitHub package, and all
+  importers (the app + `@nearform/mac-agent-workflows`) use the new name. This resolves the
+  open question "How much backward compatibility should `@lastlight/github` retain?": none.
+  The clean break is acceptable because the package was never published externally; it only
+  ever had in-repo importers, all updated in one pass (Phase 1).
+- **No cycles, asserted in CI:** `packages/mac/test/dependency-graph.test.ts` reads the four
+  `@nearform/*` `package.json` files, builds the internal dependency graph, and asserts it is
+  acyclic with `@nearform/mac` as the sink (no `@nearform/*` runtime dep) and
+  `@nearform/mac-agent-workflows` at the top (depending on `mac` + both platform packages via
+  their dependency-light `/capabilities` key import). It also checks each package exposes its
+  documented `exports` subpaths (`mac` → `./core`; platforms + agent-workflows → `./capabilities`).
+- **Docs:** package READMEs added for `@nearform/mac`, `@nearform/mac-slack`, and
+  `@nearform/mac-agent-workflows` (matching the existing `@nearform/mac-github` README);
+  `docs/examples.md` holds the four minimal `createMacApp` snippets; `CHANGELOG.md` records the
+  versioning policy (all `@nearform/mac*` packages version together while pre-1.0).
+
+### Test safety net (Phase 0)
+
+Vitest is wired at the workspace root (`vitest.config.ts`, `pnpm test`). Coverage that pins
+behavior before code moves:
+
+- `apps/maintenance/test/github-normalize.test.ts` — signature verify, bot/ignore filtering,
+  payload → `EventEnvelope` normalization (pure functions; move with the GitHub connector in
+  Phase 3).
+- `apps/maintenance/test/router.test.ts` — deterministic router decisions with the LLM
+  classifier/screener mocked (moves with the router into `@nearform/mac/core` in Phase 2).
+
+Golden prompt snapshots were intentionally **not** added (owner preference): Phase 5a
+preserves composed agent instructions by careful construction, not a snapshot suite.
+
+## Phase 0 — Runtime Boundary Inventory
+
+### 1. GitHub auth & tools (`packages/github`)
+
+**Owners** (re-exported from `packages/github/src/index.ts:1-31`):
+- `profiles.ts`: `GITHUB_PERMISSION_PROFILES`, `resolveProfile` + types `GitAccessProfile`,
+  `GitHubPermissionLevel`, `GitHubTokenPermissions`.
+- `auth.ts`: `mintInstallationToken`, `mintTokenForProfile`, `githubAppConfigFromEnv` + types
+  `GitHubAppConfig`, `InstallationToken`.
+- `client.ts`: `createInstallationOctokit`, `createTokenOctokit`.
+- `tools.ts`: `createGithubReadTools` (+ `GithubReadTools`).
+- `write-tools.ts`: `createGithubReviewTools`, `postPullRequestReview` (+ `GithubReviewTools`,
+  `ReviewEvent`, `PostedReview`).
+- `issue-tools.ts`: `addIssueComment`, `updateIssueComment`, `addIssueReaction`
+  (+ `ReactionContent`, `PostedComment`).
+
+**env / `*FromEnv`:** the only `process.env` touch in the package is
+`githubAppConfigFromEnv(env = process.env)` (`auth.ts:92`, reads `GITHUB_APP_ID`,
+`GITHUB_APP_PRIVATE_KEY_PATH`, `GITHUB_APP_INSTALLATION_ID`) — via an injectable default
+parameter. **No module-load side effects**: all network (`auth.ts:61`, Octokit calls) and
+file I/O (`readFileSync(privateKeyPath)` `auth.ts:53`, `client.ts:14`) live inside exported
+functions. No listeners.
+
+### 2. GitHub webhook ingestion (`server/github-webhook.ts` + `engine/github-normalize.ts`)
+
+**Owners:** `github-webhook.ts` exports `githubWebhookRoute`
+(`registerApiRoute("/webhooks/github", POST, requiresAuth:false)`, `:44`) + internal
+`replyOnIssue()` (`:33`). `github-normalize.ts` exports `IGNORED_ACTIONS` (`:21`),
+`verifySignature` (`:39`), `isFilteredBotEvent` (`:56`), `normalizeGithubEvent` (`:79`).
+
+**Flow** (`github-webhook.ts:47-95`): read body → `verifySignature(body, sig, webhookSecret())`
+→ `IGNORED_ACTIONS.has(action)` → `isFilteredBotEvent(payload, eventType, action, botLogin())`
+→ `isManagedRepo(repository.full_name)` → `normalizeGithubEvent(...)` →
+`createDispatcher(c.get("mastra"))` then fire-and-forget `dispatch(envelope)` → `202`.
+
+**env:** no direct `process.env`. Indirect: `webhookSecret()` (`WEBHOOK_SECRET`), `botLogin()`
+(`GITHUB_APP_BOT_NAME`), `replyOnIssue` calls `githubAppConfigFromEnv()` +
+`mintTokenForProfile(cfg, "issues-write")`, `isManagedRepo` → `LASTLIGHT_MANAGED_REPOS`.
+**No import-time side effects** — `registerApiRoute` just returns a descriptor.
+
+### 3. Slack connector (`connectors/slack/*`)
+
+**Owners:** `connector.ts` — `SlackConnector` class (`:45`), `startSlackConnector(config, dispatch)`
+(`:280`), `DispatchFn` type (`:43`). `notify.ts` — `setSlackClient`, `getSlackClient`,
+`postStatus`, `updateStatus`, `postMessage`, `SlackTarget`. `mrkdwn.ts` — `markdownToSlackMrkdwn`
+(pure).
+
+**Normalization to `EventEnvelope`** (`connector.ts:176-193`): `id: slack-${messageId}`,
+`source:"slack"`, `type:"message"`, `sender: platformUsername`, `body: cleanText`. `raw` is the
+Slack `msg` spread then OVERSTAMPED with `sessionId`, `platformUserId`, `channelId`, `threadId`
+(= resolved reply anchor `replyThreadId`, NOT `msg.thread_ts`), `team`.
+
+**reply() closure** (`:165-174`): per-chunk `app.client.chat.postMessage({channel: channelId,
+text: markdownToSlackMrkdwn(chunk), thread_ts: replyThreadId})`. Closes over `channelId`,
+`replyThreadId`, bolt `app.client`.
+
+**Stamped raw fields:** `channelId = msg.channel`; `threadId = msg.thread_ts || msg.ts`
+(`:155`); `team = msg.team`; `sessionId = slack:${channelId}:${replyThreadId}` (`:160`);
+`platformUserId = msg.user`.
+
+**Gating:** subtype/no-user/no-text/`bot_id` dropped at listener (`:96-98`); allowlist
+(`:137-140`); non-DM non-mention only continues if `${channelId}:${threadId}` ∈ `activeThreads`
+(`:144-147`); DMs always pass. **Mention stripping** `stripBotMention` removes `<@botUserId>`
+(`:205-208`); empty → drop. **Active-thread continuation** in-memory `Set` (`:54-55,:156`),
+lost on restart, no DB.
+
+**Lifecycle:** `start()` → `app.client.auth.test()` resolves `botUserId`, `setSlackClient(...)`,
+`app.start()` opens the Socket Mode WebSocket. `stop()` → `app.stop()`. `new App(...)` is in the
+constructor, WebSocket opens only in `start()` (called from `server.ts`). **No listener at import.**
+
+**env:** none direct in `connector.ts`/`mrkdwn.ts`; `notify.ts:35-40` `getSlackClient()` →
+`slackConfig()` (`SLACK_BOT_TOKEN`/`SLACK_APP_TOKEN`). Config (`botToken`,`appToken`,
+`allowedUsers`,`homeChannel`) read by the caller (`server.ts`) and passed in.
+
+### 4. Router & dispatch (`engine/router.ts`, `engine/dispatch.ts`)
+
+**Owners:** `router.ts` — `routeEvent(envelope, deps)` (`:58`), `RoutingResult`/`RouterDb`/
+`RouterDeps`. `dispatch.ts` — `createDispatcher(mastra, deps)` (`:193`), internal `dispatchSkill`,
+`startWorkflow`, `slackOrigin`.
+
+`dispatchSkill` only implements `pr-review` → `pr-review` wf, `github-orchestrator` → `build` wf,
+`chat` → `mastra.getAgent("chat").generate` (Memory `{thread, resource}`), `approval-response` →
+nudge reply; else 🚧/skip (`IMPLEMENTED = {"pr-review","github-orchestrator"}` `:22`).
+
+**slackOrigin** (`dispatch.ts:46-53`): only for `source==="slack"`, reads `raw.channelId` /
+`raw.threadId`, threads `{slackChannel, slackThread}` into workflow `inputData` (`:96-101,
+:120-132`). `router.ts:287-293` also re-derives the reply-gate trigger id
+(`slack:${team}:${channel}:${thread}`) and reads `raw.sessionId` for chat/reset contexts.
+**env:** none direct; `router.ts` uses `isManagedRepo` (`LASTLIGHT_MANAGED_REPOS`) + the LLM
+classifier/screener (which read provider keys via `engine/llm.ts`). No import-time side effects.
+
+### 5. Agents (`agents/*`) — all use `model: defaultModel()` (`LASTLIGHT_MODEL`); registered in `index.ts:60-74`
+
+| id | factory / instance | registered | tools | workspace |
+|----|----|----|----|----|
+| `chat` (`chat.ts:19`) | factory | yes | read tools iff `githubAppConfigFromEnv()` set + PEM readable, else `{}` | none; `createChatMemory()` |
+| `sandbox-probe` (`sandbox-probe.ts:10`) | factory | yes | none | `createCodeWorkspace("probe")` (static) |
+| `guardrails` (`guardrails.ts:70`) | instance | yes | none | `workspaceFromContext` (per-run) |
+| `architect` (`architect.ts:48`) | instance | yes | `readToolsFromContext` (per-run token) | `workspaceFromContext` |
+| `executor` (`executor.ts:35`) | instance | yes | none | `workspaceFromContext` |
+| `fix` (`executor.ts:70`) | instance | yes | none | `workspaceFromContext` |
+| `reviewer` (`reviewer.ts:24`) | instance | yes | `readToolsFromContext` | `workspaceFromContext` |
+| `build-reviewer` (`reviewer.ts:56`) | instance | yes | none | none (diff in prompt) |
+
+Per-run wiring in `agents/runtime.ts`: `buildAgentContext(taskId, token)` sets RC keys
+`taskId`/`token`; `workspaceFromContext` → `createCodeWorkspace(taskId)`; `readToolsFromContext`
+→ `createGithubReadTools(createTokenOctokit(token))`. Instances evaluate `defaultModel()`,
+`agentMaxSteps()`, `loadAgentContext()` at module load.
+
+### 6. Workflows (`workflows/pr-review.ts`, `workflows/build.ts`)
+
+**pr-review:** single `reviewStep` (`:41`). In-step token mint: `githubAppConfigFromEnv()`
+(`:55`, throws if null) → `resolveProfile("pr-review")` → `mintTokenForProfile(cfg, profile)`
+(`review-write`). Agent via `mastra.getAgent("reviewer")` + `generate(..., {requestContext:
+buildAgentContext(taskId, token), tracingContext})`. Posts deterministically via
+`createTokenOctokit(token)` + `postPullRequestReview(...)`. Slack mirror via `postMessage` if
+`slackChannel`+`slackThread`. No approval gate.
+
+**build:** `guardrails → architect → post_architect (suspend/resume) → executor →
+dountil(review→executor_fix) → finalize → pr` (`:996-1016`). In-step mints via `requireAppConfig()`
+(`githubAppConfigFromEnv()` `:251`), `mintReadToken()` (`read`, clone), `mintWriteToken()`
+(`build`→`repo-write`, commit/push/comment/PR). Workspace `createCodeWorkspace(taskId)` per step
++ git helpers (`git.ts`). Agents via `mastra.getAgent(...)` + `buildAgentContext`. Approval:
+`post_architect` `suspend({message,branch,plan})` → resume reads `resumeData {decision,reason}`.
+Status comment via `renderStatusComment` (embeds signed `approvalLink(runId,…)`) +
+`addIssueComment`/`updateIssueComment`/`addIssueReaction`; PR via `octokit.rest.pulls.create`.
+Slack via `postStatus`/`updateStatus` + terminal `postMessage`. **FromEnv:**
+`githubAppConfigFromEnv()` at `pr-review.ts:55` and `build.ts:251`. No module-load side effects.
+
+### 7. Workspace factory (`workspace.ts`)
+
+`createCodeWorkspace(taskDir)` (`:19`) builds a Mastra `Workspace` = `LocalFilesystem({basePath})`
++ `LocalSandbox({workingDirectory, env, timeout})`. Root = `LASTLIGHT_WORKSPACES_DIR` or
+`<cwd>/workspaces`; per-task `mkdirSync`. **LocalSandbox executes on the host, no isolation/egress
+firewall.** env: `LASTLIGHT_WORKSPACES_DIR`, `LASTLIGHT_SANDBOX_TIMEOUT_MS`,
+`LASTLIGHT_SANDBOX_INHERIT_ENV`, curated `process.env` allowlist (`:66-94`), `GITHUB_TOKEN`/
+`GH_TOKEN`. Note `sandbox-probe` calls `createCodeWorkspace("probe")` at agent construction, so a
+`workspaces/probe` dir is created when the Mastra instance is built.
+
+### 8. Approval route (`server/approval.ts`)
+
+`approvalRoute = registerApiRoute("/approve", GET, requiresAuth:false)` (`:32`). Token scheme:
+query `runId`,`token`,`decision`,`reason?`; validates `token === approvalToken(runId)` =
+`HMAC-SHA256(approvalSecret, runId).slice(0,32)` (`config.ts:95-97`); `approvalSecret` =
+`LASTLIGHT_APPROVAL_SECRET ?? ADMIN_SECRET ?? WEBHOOK_SECRET ?? "lastlight-dev-approval-secret"`.
+No session check. Resume: `getWorkflow("build")` → require `status==="suspended"` →
+`createRun({runId})` → fire-and-forget `run.resume({step:"post_architect", resumeData})`.
+
+### 9. Server boot (`server.ts`)
+
+1. `import "dotenv/config"` first (`:4`). 2. import `./mastra/index.js` → **Mastra instance
+constructed at module-eval** (composite store `LibSQLStore(dbUrl())` + `DuckDBStore(duckDbPath())`,
+observability, all agents incl. `sandbox-probe` `mkdirSync`, workflows, apiRoutes). 3. Hono app +
+CORS. 4. `new MastraServer({app, mastra})` + `await server.init()` mounts `/api/*` + custom routes.
+5. `port = process.env.PORT ?? 4111`; `serve({fetch, port})`. 6. **Slack starts AFTER `serve()`**
+(`:75-83`): `slackConfig()`; if non-null → `startSlackConnector(slack, createDispatcher(mastra))`;
+else "Slack disabled".
+
+## `@lastlight/github` package.json / exports map
+
+`name: "@lastlight/github"`, `private`, `type: module`. `main: "./dist/index.js"`,
+`types: "./src/index.ts"`. `exports["."] = { types: "./src/index.ts", import: "./dist/index.js" }`
+(types point at SOURCE; consumed source-only via `bundler.transpilePackages:
+["@lastlight/github"]` in `index.ts:91-93`).
+
+### Importers of `@lastlight/github` (to update in Phase 1)
+
+| file:line | symbols |
+|----|----|
+| `agents/chat.ts:2-6` | `createGithubReadTools`, `createInstallationOctokit`, `githubAppConfigFromEnv` |
+| `agents/runtime.ts:2` | `createGithubReadTools`, `createTokenOctokit` |
+| `server/github-webhook.ts:3-8` | `githubAppConfigFromEnv`, `mintTokenForProfile`, `createTokenOctokit`, `addIssueComment` |
+| `workflows/pr-review.ts:3-9` | `createTokenOctokit`, `githubAppConfigFromEnv`, `mintTokenForProfile`, `postPullRequestReview`, `resolveProfile` |
+| `workflows/build.ts:4-14` | `githubAppConfigFromEnv`, `mintTokenForProfile`, `resolveProfile`, `createTokenOctokit`, `addIssueComment`, `updateIssueComment`, `addIssueReaction`, `type ReactionContent`, `type GitHubAppConfig` |
+| `mastra/index.ts:87,92` | string reference only (`bundler.transpilePackages`) |
+
+## `process.env` / `*FromEnv` read sites (to eliminate from reusable package code)
+
+App `config.ts` centralizes most reads: `LASTLIGHT_DB_URL`, `LASTLIGHT_STATE_DIR`,
+`LASTLIGHT_OBS_DB_PATH`, `LASTLIGHT_MODEL`, `LASTLIGHT_AGENT_MAX_STEPS`, `WEBHOOK_SECRET`,
+`GITHUB_APP_BOT_NAME`, `PORT`, `LASTLIGHT_PUBLIC_URL`, `LASTLIGHT_APPROVAL_SECRET`,
+`ADMIN_SECRET`, `SLACK_BOT_TOKEN`, `SLACK_APP_TOKEN`, `SLACK_ALLOWED_USERS`,
+`SLACK_HOME_CHANNEL`. Other sites: `agent-context.ts:29` (`LASTLIGHT_AGENT_CONTEXT_DIR`),
+`managed-repos.ts:12` (`LASTLIGHT_MANAGED_REPOS`), `workspace.ts` (`LASTLIGHT_WORKSPACES_DIR`,
+`LASTLIGHT_SANDBOX_TIMEOUT_MS`, `LASTLIGHT_SANDBOX_INHERIT_ENV`, full `process.env` allowlist,
+`GITHUB_TOKEN`/`GH_TOKEN`), `engine/llm.ts` (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`,
+`OPENROUTER_API_KEY`, `OPENCODE_MODELS`), `cli.ts:23` (`LASTLIGHT_URL`), `server.ts:63` (`PORT`).
+
+`*FromEnv` definition: `githubAppConfigFromEnv` (`packages/github/src/auth.ts:92`, injectable
+default param). Call sites to replace with the injected token broker (Phases 7–8):
+`chat.ts:34`, `github-webhook.ts:34`, `build.ts:251`, `pr-review.ts:55`.

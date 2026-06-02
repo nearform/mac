@@ -1,0 +1,31 @@
+{
+  "name": "@nearform/mac-slack",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MAC Slack platform — Socket Mode connector, message/status helpers, mrkdwn formatting, and the slack() extension.",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./capabilities": {
+      "types": "./src/capabilities.ts",
+      "import": "./src/capabilities.ts"
+    }
+  },
+  "files": ["src"],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nearform/mac": "workspace:*",
+    "@mastra/core": "^1.37.1",
+    "@slack/bolt": "^4.6.0",
+    "@slack/web-api": "^7.16.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}

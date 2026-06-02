@@ -1,0 +1,41 @@
+{
+  "name": "@nearform/mac-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MAC server — the core deployable Mastra app that composes the @nearform/mac* packages.",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "studio": "mastra studio -s 4111",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ai-sdk/anthropic": "^3.0.81",
+    "@ai-sdk/openai": "^3.0.67",
+    "@hono/node-server": "^1.19.14",
+    "@nearform/mac-github": "workspace:*",
+    "@nearform/mac-slack": "workspace:*",
+    "@nearform/mac-agent-workflows": "workspace:*",
+    "@nearform/mac": "workspace:*",
+    "@mastra/core": "^1.37.1",
+    "@mastra/duckdb": "^1.4.0",
+    "@mastra/hono": "^1.4.20",
+    "@mastra/libsql": "^1.11.1",
+    "@mastra/loggers": "^1.1.1",
+    "@mastra/memory": "^1.20.0",
+    "@mastra/observability": "^1.14.0",
+    "@slack/bolt": "^4.6.0",
+    "@slack/web-api": "^7.16.0",
+    "ai": "^6.0.193",
+    "dotenv": "^16.4.5",
+    "hono": "^4.12.23",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "mastra": "^1.10.2",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.0"
+  }
+}

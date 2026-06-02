@@ -1,0 +1,32 @@
+{
+  "name": "@nearform/mac-agent-workflows",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MAC agents, workflow factories, and markdown instruction assets (prompts + agent-context) with layered loaders.",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.ts"
+    },
+    "./capabilities": {
+      "types": "./src/capabilities.ts",
+      "import": "./src/capabilities.ts"
+    }
+  },
+  "files": ["src", "prompts", "agent-context"],
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@nearform/mac": "workspace:*",
+    "@nearform/mac-github": "workspace:*",
+    "@nearform/mac-slack": "workspace:*",
+    "@mastra/core": "^1.37.1",
+    "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.7.0"
+  }
+}
