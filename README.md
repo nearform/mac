@@ -36,9 +36,6 @@ packages/mac-github/     # GitHub platform extension
 packages/mac-slack/      # Slack platform extension
 packages/mac-agent-workflows/  # agents, workflows, markdown assets
 packages/mac-cli/  # thin HTTP CLI client that triggers the running server
-prompts/                 # phase prompt templates (copied from the original)
-skills/                  # agent skills (copied from the original)
-agent-context/           # persona/rules prepended to agent sessions (copied from the original)
 CHANGELOG.md             # versioning policy + the MAC refactor entry
 MIGRATION.md             # mapping, pinned API signatures, dropped/deferred log
 docs/                    # design docs (refactor design + examples)
