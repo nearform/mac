@@ -3,7 +3,7 @@
 ## Start the app (server + Studio)
 
 ```bash
-corepack pnpm dev   # (or: corepack pnpm -C apps/server dev)
+pnpm dev   # (or: pnpm -C apps/server dev)
 # Studio UI:   http://localhost:4111
 # REST API:    http://localhost:4111/api
 # OpenAPI:     http://localhost:4111/openapi.json   (Swagger: /swagger-ui)

@@ -43,11 +43,14 @@ docs/                    # design docs (refactor design + examples)
 
 ## Develop
 
+Requires [pnpm](https://pnpm.io) (the version is pinned via the `packageManager`
+field; `corepack enable` once will provision it for you if you don't have it).
+
 ```bash
-corepack pnpm install                      # one-time
-corepack pnpm dev                          # server (:4111) + Studio (http://localhost:3000)
-corepack pnpm cli <owner/repo#N>           # trigger a run against the running server
-corepack pnpm -C apps/server typecheck
+pnpm install                      # one-time
+pnpm dev                          # server (:4111) + Studio (http://localhost:3000)
+pnpm cli <owner/repo#N>           # trigger a run against the running server
+pnpm -C apps/server typecheck
 ```
 
 `apps/server/.env` holds service config (Anthropic/OpenRouter keys, GitHub App, Slack,
