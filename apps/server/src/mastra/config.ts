@@ -89,7 +89,7 @@ export function botLogin(): string {
  * tunnel (the links are clicked from GitHub in the user's browser). Defaults to
  * the local Mastra server, where the apiRoutes are hosted.
  */
-export function publicBaseUrl(): string {
+function publicBaseUrl(): string {
   const fallback = `http://localhost:${process.env.PORT ?? 4111}`;
   return (process.env.MAC_PUBLIC_URL ?? fallback).replace(/\/+$/, "");
 }

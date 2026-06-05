@@ -85,7 +85,7 @@ export function createCodeWorkspace(
  *
  * @param token optional GitHub token to expose as GITHUB_TOKEN/GH_TOKEN.
  */
-export function sandboxEnv(token?: string): Record<string, string> {
+function sandboxEnv(token?: string): Record<string, string> {
   const host = process.env;
 
   if (host.MAC_SANDBOX_INHERIT_ENV === "1") {

@@ -19,14 +19,14 @@ import type { Workspace } from "@mastra/core/workspace";
  * a WRITE token minted per-step. See ../../../MIGRATION.md.
  */
 
-export interface GitResult {
+interface GitResult {
   exitCode: number;
   stdout: string;
   stderr: string;
 }
 
 /** Run a command in the workspace sandbox; throws on non-zero unless `allowFail`. */
-export async function runInWorkspace(
+async function runInWorkspace(
   ws: Workspace,
   command: string,
   args: string[],
@@ -60,7 +60,7 @@ export async function runInWorkspace(
  * run from a freshly-cloned dir, `--git-dir` returns the relative `.git`; from
  * an empty dir inside an ancestor repo it returns that ancestor's absolute path.
  */
-export async function isCloned(ws: Workspace): Promise<boolean> {
+async function isCloned(ws: Workspace): Promise<boolean> {
   const res = await runInWorkspace(ws, "git", ["rev-parse", "--git-dir"], {
     allowFail: true,
   });
@@ -268,7 +268,7 @@ export async function writeArtifact(
  * commit on the work branch as the bot identity. Returns the new commit SHA, or
  * null if there was nothing to commit.
  */
-export async function commitAll(ws: Workspace, message: string): Promise<string | null> {
+async function commitAll(ws: Workspace, message: string): Promise<string | null> {
   await runInWorkspace(ws, "git", ["add", "-A"]);
   const status = await runInWorkspace(ws, "git", ["status", "--porcelain"], { allowFail: true });
   if (!status.stdout.trim()) return null;
@@ -283,7 +283,7 @@ export async function commitAll(ws: Workspace, message: string): Promise<string 
  * left on disk. THE ONLY function in this module that writes to the remote — it
  * runs solely from the PR step, behind the `createPr` opt-in.
  */
-export async function pushBranch(
+async function pushBranch(
   ws: Workspace,
   args: { owner: string; repo: string; token: string; branch: string },
 ): Promise<void> {

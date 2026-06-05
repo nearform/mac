@@ -11,8 +11,6 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ai-sdk/anthropic": "^3.0.81",
-    "@ai-sdk/openai": "^3.0.67",
     "@hono/node-server": "^1.19.14",
     "@nearform/mac-github": "workspace:*",
     "@nearform/mac-slack": "workspace:*",
@@ -27,7 +25,6 @@
     "@mastra/observability": "^1.14.0",
     "@slack/bolt": "^4.6.0",
     "@slack/web-api": "^7.16.0",
-    "ai": "^6.0.193",
     "dotenv": "^16.4.5",
     "hono": "^4.12.23",
     "zod": "^4.4.3"
