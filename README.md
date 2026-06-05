@@ -1,4 +1,4 @@
-# mac-mastra
+# MAC — Mastra Agentic Coding
 
 **MAC** (Mastra Agentic Coding) — a GitHub repo-maintenance agent built as an
 idiomatic [Mastra](https://mastra.ai) v1 app and refactored into a reusable
