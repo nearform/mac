@@ -192,7 +192,8 @@ export class SlackConnector {
     try {
       await this.dispatch(envelope);
     } catch (err) {
-      console.error(`[slack] dispatch failed for ${envelope.id}:`, err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[slack] dispatch failed for ${envelope.id}: ${msg}`);
     }
   }
 

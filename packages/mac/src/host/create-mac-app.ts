@@ -366,7 +366,8 @@ export async function createMacApp(config: MacAppConfig): Promise<MacPreset> {
         // Fire-and-forget: the webhook/Slack handler must respond fast, and the
         // run may suspend at an approval gate.
         void Promise.resolve(run.start({ inputData: input })).catch((err: unknown) => {
-          log.error(`[dispatch] workflow "${target.id}" failed:`, err);
+          const msg = err instanceof Error ? err.message : String(err);
+          log.error(`[dispatch] workflow "${target.id}" failed: ${msg}`);
         });
         return undefined;
       }
@@ -414,7 +415,8 @@ export async function createMacApp(config: MacAppConfig): Promise<MacPreset> {
           );
           await envelope.reply(text || "…").catch(() => {});
         } catch (err) {
-          log.error(`[dispatch] agent "${target.id}" generate failed:`, err);
+          const msg = err instanceof Error ? err.message : String(err);
+          log.error(`[dispatch] agent "${target.id}" generate failed: ${msg}`);
           await envelope.reply("⚠️ Something went wrong handling that — try again?").catch(() => {});
         }
         return undefined;

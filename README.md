@@ -60,9 +60,30 @@ field; `corepack enable` once will provision it for you if you don't have it).
 
 ```bash
 pnpm install                      # one-time
-pnpm dev                          # server (:4111) + Studio (http://localhost:3000)
+pnpm dev                          # server (:4111) + Studio (:3000) — shows MAC banner on ready
 pnpm cli <owner/repo#N>           # trigger a run against the running server
 pnpm -C apps/server typecheck
+```
+
+### Global `mac` CLI (optional)
+
+Install the `mac` command globally so it works from any directory:
+
+```bash
+pnpm setup        # one-time: configures PNPM_HOME and adds it to your shell PATH
+                  # re-source your shell profile (or open a new terminal) after this
+pnpm link-cli     # creates a global `mac` symlink via pnpm
+```
+
+Once linked:
+
+```bash
+mac dev                           # start server + Studio (same as pnpm dev)
+mac serve                         # production start (no watch, no Studio)
+mac build owner/repo#42           # trigger the full build cycle
+mac review owner/repo#7           # trigger a PR review
+mac owner/repo#42                 # auto-detect: triage issue or review PR
+mac --help                        # full command list
 ```
 
 `apps/server/.env` holds service config (Anthropic/OpenRouter keys, GitHub App, Slack,

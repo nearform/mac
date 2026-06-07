@@ -3,12 +3,16 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "MAC CLI — thin client that triggers the running Mastra server.",
-  "bin": { "mac": "src/cli.ts" },
-  "files": ["src"],
+  "description": "MAC CLI — dev launcher and thin client for the Mastra server.",
+  "bin": { "mac": "bin/mac.js" },
+  "files": ["bin", "src", "dist"],
   "scripts": {
     "start": "tsx src/cli.ts",
+    "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "commander": "^13.0.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

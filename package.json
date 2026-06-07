@@ -9,12 +9,13 @@
     "node": ">=22"
   },
   "scripts": {
-    "dev": "concurrently -k -n server,studio -c cyan,magenta \"pnpm -C apps/server dev\" \"pnpm -C apps/server studio\"",
+    "dev": "pnpm -C packages/mac-cli start dev",
     "dev:server": "pnpm -C apps/server dev",
-    "dev:tunnel": "concurrently -k -n server,studio,tunnel -c cyan,magenta,yellow \"pnpm -C apps/server dev\" \"pnpm -C apps/server studio\" \"pnpm tunnel\"",
-    "start": "pnpm -C apps/server start",
+    "dev:tunnel": "concurrently -k -n mac,tunnel -c cyan,yellow \"pnpm dev\" \"pnpm tunnel\"",
+    "start": "pnpm -C packages/mac-cli start serve",
     "studio": "pnpm -C apps/server studio",
     "cli": "pnpm -C packages/mac-cli start",
+    "link-cli": "pnpm -C packages/mac-cli build && cd packages/mac-cli && pnpm link --global",
     "typecheck": "pnpm -r typecheck",
     "test": "vitest run",
     "test:watch": "vitest",

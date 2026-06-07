@@ -61,10 +61,7 @@ await server.init();
 
 const port = Number(process.env.PORT ?? 4111);
 
-serve({ fetch: app.fetch, port }, (info) => {
-  console.log(`[server] MAC listening on http://localhost:${info.port}`);
-  console.log(`[server] Studio: pnpm -C apps/server studio  (→ mastra studio -s ${info.port})`);
-});
+serve({ fetch: app.fetch, port });
 
 // Long-running connectors start AFTER the server is up. This is the payoff of
 // owning the server: a Socket Mode WebSocket just starts here, gated on config —

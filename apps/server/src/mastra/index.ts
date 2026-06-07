@@ -181,7 +181,17 @@ const chatAgent = createChatAgent();
 
 // One logger shared by the Mastra instance AND the dispatch (so route → agent/
 // workflow lines match the workflow/agent log format). Env-driven level.
-const logger = new PinoLogger({ name: "mac", level: logLevel() });
+const logger = new PinoLogger({
+  name: "mac",
+  level: logLevel(),
+  // Strip fields that make error logs unreadably verbose: the full LLM request
+  // body (system prompt + all tool schemas) and raw HTTP noise. The error
+  // message, URL, and status code remain — enough to diagnose without walls of text.
+  redact: {
+    paths: ["err.requestBodyValues", "err.responseHeaders", "err.stack", "err.data"],
+    remove: true,
+  },
+});
 
 const workspaceFactory: WorkspaceFactory = {
   create: (taskId, options) => createCodeWorkspace(taskId, options),

@@ -261,7 +261,8 @@ export function createGithubWebhookRoute(args: GithubWebhookRouteArgs): ApiRoute
       // classifier/screener LLM calls + workflow start take seconds).
       const dispatch = args.createDispatch(c);
       void dispatch(envelope).catch((err: unknown) => {
-        console.error(`[github] dispatch failed for ${deliveryId}:`, err);
+        const msg = err instanceof Error ? err.message : String(err);
+        console.error(`[github] dispatch failed for ${deliveryId}: ${msg}`);
       });
 
       return c.json({ accepted: true, id: deliveryId }, 202);

@@ -9,10 +9,12 @@ mapping/pinned-API log, and `docs/` for design notes.
 
 ```bash
 pnpm install            # one-time
-pnpm dev                # server (:4111) + Studio (:3000)
+pnpm setup              # one-time: configure pnpm global bin (needed before link-cli)
+pnpm link-cli           # one-time: install `mac` command globally
+pnpm dev                # server (:4111) + Studio (:3000) — shows MAC banner on ready
 pnpm -r typecheck       # all packages
 pnpm test               # vitest
-pnpm cli <owner/repo#N> # trigger a run against the running server
+mac <owner/repo#N>      # trigger a run (or: pnpm cli <owner/repo#N>)
 ```
 
 ## Testing
