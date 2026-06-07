@@ -5,7 +5,45 @@
  */
 
 import { createHmac } from "crypto";
+import { existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type { SlackConfig } from "@nearform/mac-slack";
+
+/**
+ * Monorepo root, resolved by walking up from THIS module for `pnpm-workspace.yaml`
+ * — cwd- AND bundle-independent: it works both from source (apps/server/src/mastra)
+ * and from the built bundle (apps/server/.mastra/output), since both live inside
+ * the repo tree. This lets local state default to the REPO ROOT (`<root>/data`),
+ * like `secrets/`, rather than to apps/server or a volatile cwd. Falls back to cwd
+ * if no marker is found (e.g. a bundle copied out of the repo) — set MAC_STATE_DIR
+ * explicitly in that case.
+ */
+function findRepoRoot(): string {
+  let dir = dirname(fileURLToPath(import.meta.url));
+  for (let i = 0; i < 12; i++) {
+    if (existsSync(join(dir, "pnpm-workspace.yaml"))) return dir;
+    const parent = dirname(dir);
+    if (parent === dir) break;
+    dir = parent;
+  }
+  return process.cwd();
+}
+const REPO_ROOT = findRepoRoot();
+
+/**
+ * Base dir for local state — the SQLite DB, the DuckDB observability file, and the
+ * per-run sandbox `workspaces/`. Defaults to `<repo-root>/data` (cwd-independent);
+ * override with MAC_STATE_DIR.
+ */
+export function stateDir(): string {
+  return process.env.MAC_STATE_DIR ?? join(REPO_ROOT, "data");
+}
+
+/** Per-run sandbox checkouts root. Defaults to `<stateDir>/workspaces`. */
+export function workspacesDir(): string {
+  return process.env.MAC_WORKSPACES_DIR ?? join(stateDir(), "workspaces");
+}
 
 /**
  * Managed-repo allowlist. The GitHub App may be installed on extra repos, but we
@@ -27,10 +65,7 @@ export function isManagedRepo(repo: string | undefined | null): boolean {
 
 /** Absolute SQLite URL, cwd-independent (see index.ts note on libsql error 14). */
 export function dbUrl(): string {
-  return (
-    process.env.MAC_DB_URL ??
-    `file:${process.env.MAC_STATE_DIR ?? process.cwd()}/mac.db`
-  );
+  return process.env.MAC_DB_URL ?? `file:${join(stateDir(), "mac.db")}`;
 }
 
 /**
@@ -40,10 +75,7 @@ export function dbUrl(): string {
  * index.ts). Absolute + cwd-independent like dbUrl(). `:memory:` for ephemeral.
  */
 export function duckDbPath(): string {
-  return (
-    process.env.MAC_OBS_DB_PATH ??
-    `${process.env.MAC_STATE_DIR ?? process.cwd()}/observability.duckdb`
-  );
+  return process.env.MAC_OBS_DB_PATH ?? join(stateDir(), "observability.duckdb");
 }
 
 /**
@@ -68,6 +100,21 @@ export function agentMaxSteps(): number {
   return Number(process.env.MAC_AGENT_MAX_STEPS ?? 40);
 }
 
+/**
+ * Mastra logger level for the app, from `MAC_LOG_LEVEL` (default `info`). Use
+ * `debug` for verbose dev output (`MAC_LOG_LEVEL=debug pnpm dev`). An unset or
+ * unrecognized value falls back to `info`. Note: Mastra's `LogLevel` only supports
+ * these five — there is no `trace`/`fatal`. Per-run agent detail (sandbox commands
+ * with I/O) is in Studio's Observability tab, not the console log stream.
+ */
+const LOG_LEVELS = ["debug", "info", "warn", "error", "silent"] as const;
+export function logLevel(): (typeof LOG_LEVELS)[number] {
+  const v = process.env.MAC_LOG_LEVEL?.toLowerCase();
+  return (LOG_LEVELS as readonly string[]).includes(v ?? "")
+    ? (v as (typeof LOG_LEVELS)[number])
+    : "info";
+}
+
 // ── M5 connectors (webhook + approval link) ──────────────────────────────────
 
 /** GitHub webhook HMAC secret — must match the GitHub App's configured secret. */
@@ -89,7 +136,7 @@ export function botLogin(): string {
  * tunnel (the links are clicked from GitHub in the user's browser). Defaults to
  * the local Mastra server, where the apiRoutes are hosted.
  */
-export function publicBaseUrl(): string {
+function publicBaseUrl(): string {
   const fallback = `http://localhost:${process.env.PORT ?? 4111}`;
   return (process.env.MAC_PUBLIC_URL ?? fallback).replace(/\/+$/, "");
 }

@@ -23,6 +23,7 @@ import type {
   RouteContext,
   WorkspaceFactory,
   ApprovalLinkBuilder,
+  InteractiveDispatch,
 } from "../core/index.js";
 import {
   agentRegistryCapability,
@@ -62,6 +63,25 @@ export interface MacAppConfig {
   prompts?: { overrideDir?: string };
   /** Opt-in MCP surface selection/gating. Omitted → MCP off (embedded path unaffected). */
   mcp?: MacMcpConfig;
+  /**
+   * Opt-in interactive/conversational dispatcher. When set, `agent`-target
+   * routes are delegated here (e.g. to a Mastra `Harness`) instead of the
+   * built-in bare `agent.generate(...)` path. Omitted → unchanged behaviour.
+   */
+  interactive?: InteractiveDispatch;
+  /**
+   * Optional structured logger for dispatch diagnostics (route → agent/workflow).
+   * Pass the app's Mastra logger so dispatch lines share the same format as
+   * workflow/agent logs. Omitted → falls back to `console`.
+   */
+  logger?: MacLogger;
+}
+
+/** Minimal structured-logger surface the dispatch uses (matches IMastraLogger). */
+export interface MacLogger {
+  info(message: string, ...args: unknown[]): void;
+  warn(message: string, ...args: unknown[]): void;
+  error(message: string, ...args: unknown[]): void;
 }
 
 export interface MacPreset {
@@ -329,16 +349,24 @@ export async function createMacApp(config: MacAppConfig): Promise<MacPreset> {
     ctx: RouteContext,
     envelope: EventEnvelope,
   ): Promise<unknown> {
+    // Dispatch diagnostics go through the app's logger (same format as
+    // workflow/agent logs) when provided; otherwise console.
+    const log = config.logger ?? console;
     switch (target.type) {
       case "workflow": {
         const wf = finalWorkflows[target.id];
         if (!wf) return undefined; // preflighted at startup; defensive only
         const input = target.input?.(ctx) ?? {};
+        log.info(
+          `[dispatch] workflow "${target.id}" ← ${envelope.sender || "anonymous"}@${envelope.source}` +
+            (envelope.repo ? ` ${envelope.repo}` : "") +
+            (envelope.issueNumber ? `#${envelope.issueNumber}` : ""),
+        );
         const run = await wf.createRun();
         // Fire-and-forget: the webhook/Slack handler must respond fast, and the
         // run may suspend at an approval gate.
         void Promise.resolve(run.start({ inputData: input })).catch((err: unknown) => {
-          console.error(`[dispatch] workflow "${target.id}" failed:`, err);
+          log.error(`[dispatch] workflow "${target.id}" failed:`, err);
         });
         return undefined;
       }
@@ -353,13 +381,40 @@ export async function createMacApp(config: MacAppConfig): Promise<MacPreset> {
         // connector) or the envelope id, resource = the sender.
         const thread = (typeof raw?.sessionId === "string" && raw.sessionId) || envelope.id;
         const resource = envelope.sender || "anonymous";
+        // One-line preview of the inbound message so it's visible in the log
+        // stream that a chat actually happened (the happy path was silent). The
+        // body is whitespace-collapsed and capped; a `…` + total length is
+        // appended only when it was actually truncated.
+        const flat = String(input ?? "").replace(/\s+/g, " ").trim();
+        const truncated = flat.length > 120;
+        const body = truncated ? `${flat.slice(0, 120)}…` : flat;
+        const suffix = truncated ? ` (${flat.length} chars)` : "";
+        const lane = config.interactive ? "interactive" : "generate";
+        log.info(
+          `[dispatch] agent "${target.id}" (${lane}) ← ${resource}@${envelope.source} thread=${thread}: "${body}"${suffix}`,
+        );
         try {
+          // Interactive lane: delegate to the app-provided dispatcher (e.g. a
+          // Harness) when configured; otherwise the built-in bare generate path.
+          if (config.interactive) {
+            await config.interactive.handle({
+              agentId: target.id,
+              message: typeof input === "string" ? input : String(input ?? ""),
+              threadId: thread,
+              resource,
+              reply: (m: string) => envelope.reply(m),
+            });
+            return undefined;
+          }
           const res = await (agent as { generate: (i: unknown, o?: unknown) => Promise<{ text?: string }> })
             .generate(input, { memory: { thread, resource } });
           const text = (res?.text ?? "").trim();
+          log.info(
+            `[dispatch] agent "${target.id}" → ${resource}: replied ${text.length} chars`,
+          );
           await envelope.reply(text || "…").catch(() => {});
         } catch (err) {
-          console.error(`[dispatch] agent "${target.id}" generate failed:`, err);
+          log.error(`[dispatch] agent "${target.id}" generate failed:`, err);
           await envelope.reply("⚠️ Something went wrong handling that — try again?").catch(() => {});
         }
         return undefined;

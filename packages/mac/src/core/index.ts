@@ -57,4 +57,9 @@ export type { MacAgentRegistry } from "./agent-registry.js";
 export { agentRegistryCapability, createAgentRegistry } from "./agent-registry.js";
 
 // Dependency-injection contracts
-export type { WorkspaceFactory, ApprovalLinkBuilder } from "./di.js";
+export type {
+  WorkspaceFactory,
+  ApprovalLinkBuilder,
+  InteractiveDispatch,
+  InteractiveTurn,
+} from "./di.js";
