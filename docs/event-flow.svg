@@ -1,0 +1,106 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 700" role="img"
+     aria-label="MAC runtime event flow: GitHub App, Slack, and CLI sources emit events that are normalized into an EventEnvelope, dispatched through the Router, then executed by PR Review, Build, or Chat workflows/agents, with sandbox isolation for code execution, feeding into shared State and Observability">
+  <defs>
+    <marker id="flow-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto">
+      <path d="M0,0 L8,3 L0,6" fill="#2A3A4D"/>
+    </marker>
+  </defs>
+
+  <!-- ── Row 1: Sources ─────────────────────────────────────────────────── -->
+  <text x="36" y="16" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">SOURCES</text>
+
+  <!-- GitHub App -->
+  <rect x="20" y="25" width="235" height="65" rx="8" fill="#141B24" stroke="#1A7A8A" stroke-width="1.5"/>
+  <text x="36" y="43" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">WEBHOOK</text>
+  <text x="36" y="62" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#ECEFF4">GitHub App</text>
+  <text x="36" y="79" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">PR opened · issue comment · push</text>
+
+  <!-- Slack -->
+  <rect x="275" y="25" width="245" height="65" rx="8" fill="#141B24" stroke="#1A7A8A" stroke-width="1.5"/>
+  <text x="291" y="43" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">SOCKET MODE</text>
+  <text x="291" y="62" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#ECEFF4">Slack</text>
+  <text x="291" y="79" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">Chat messages · @mention routing</text>
+
+  <!-- CLI / Manual -->
+  <rect x="540" y="25" width="240" height="65" rx="8" fill="#141B24" stroke="#1A7A8A" stroke-width="1.5"/>
+  <text x="556" y="43" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">HTTP · CLI</text>
+  <text x="556" y="62" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#ECEFF4">CLI / Manual</text>
+  <text x="556" y="79" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">pnpm cli &lt;owner/repo#N&gt;</text>
+
+  <!-- Arrows: Sources → EventEnvelope -->
+  <line x1="137" y1="90" x2="137" y2="138" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+  <line x1="397" y1="90" x2="397" y2="138" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+  <line x1="660" y1="90" x2="660" y2="138" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+
+  <!-- ── Row 2: EventEnvelope ───────────────────────────────────────────── -->
+  <rect x="20" y="140" width="760" height="55" rx="8" fill="#141B24" stroke="#1E2A38" stroke-width="1.5"/>
+  <text x="36" y="158" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">NORMALIZE</text>
+  <text x="36" y="176" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#ECEFF4">EventEnvelope</text>
+  <text x="200" y="176" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">  actor · repo · event type · intent signal · source platform</text>
+
+  <!-- Arrow: EventEnvelope → Router -->
+  <line x1="400" y1="195" x2="400" y2="243" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+
+  <!-- ── Row 3: Router ──────────────────────────────────────────────────── -->
+  <rect x="20" y="245" width="760" height="60" rx="8" fill="#141B24" stroke="#F0B429" stroke-width="1.5"/>
+  <text x="36" y="263" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">DISPATCH</text>
+  <text x="36" y="282" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#ECEFF4">Router</text>
+  <text x="114" y="282" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">  Pre-rules guards → deterministic routes → LLM classify</text>
+
+  <!-- Arrows: Router → Execution (fan-out with curves) -->
+  <path d="M 400 305 Q 400 335 139 358" stroke="#2A3A4D" stroke-width="1.5" fill="none" marker-end="url(#flow-arrow)"/>
+  <line x1="400" y1="305" x2="397" y2="358" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+  <path d="M 400 305 Q 400 335 658 358" stroke="#2A3A4D" stroke-width="1.5" fill="none" marker-end="url(#flow-arrow)"/>
+
+  <!-- Flow labels -->
+  <text x="175" y="334" font-family="Inter, sans-serif" font-size="10" font-style="italic" fill="#7D8694">pr review</text>
+  <text x="360" y="334" font-family="Inter, sans-serif" font-size="10" font-style="italic" fill="#7D8694">build</text>
+  <text x="555" y="334" font-family="Inter, sans-serif" font-size="10" font-style="italic" fill="#7D8694">chat</text>
+
+  <!-- ── Row 4: Execution ───────────────────────────────────────────────── -->
+
+  <!-- PR Review Workflow -->
+  <rect x="20" y="360" width="235" height="85" rx="8" fill="#141B24" stroke="#F0B429" stroke-width="1.5"/>
+  <text x="36" y="378" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">WORKFLOW</text>
+  <text x="36" y="397" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#ECEFF4">PR Review</text>
+  <text x="36" y="414" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">Reviewer agent · read diff</text>
+  <text x="36" y="430" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">post review comments</text>
+
+  <!-- Build Workflow -->
+  <rect x="275" y="360" width="245" height="85" rx="8" fill="#141B24" stroke="#F0B429" stroke-width="1.5"/>
+  <text x="291" y="378" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">WORKFLOW</text>
+  <text x="291" y="397" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#ECEFF4">Build</text>
+  <text x="291" y="414" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">Architect → approval gate</text>
+  <text x="291" y="430" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">executor → fix loop → open PR</text>
+
+  <!-- Chat Agent -->
+  <rect x="540" y="360" width="240" height="85" rx="8" fill="#141B24" stroke="#1A7A8A" stroke-width="1.5"/>
+  <text x="556" y="378" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">AGENT</text>
+  <text x="556" y="397" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#ECEFF4">Chat Agent</text>
+  <text x="556" y="414" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">Conversational · GitHub read</text>
+  <text x="556" y="430" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">tools · replies via Slack</text>
+
+  <!-- Arrows: Workflows → Sandbox -->
+  <line x1="137" y1="445" x2="137" y2="498" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+  <line x1="397" y1="445" x2="397" y2="498" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+
+  <!-- Arrow: Chat → State (long, right column) -->
+  <line x1="660" y1="445" x2="660" y2="628" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+  <text x="666" y="550" font-family="Inter, sans-serif" font-size="10" font-style="italic" fill="#7D8694">Slack reply</text>
+
+  <!-- ── Row 5: Sandbox ─────────────────────────────────────────────────── -->
+  <rect x="20" y="500" width="500" height="70" rx="8" fill="#141B24" stroke="#E8752A" stroke-width="1.5"/>
+  <text x="36" y="518" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">ISOLATION · SANDBOX</text>
+  <text x="36" y="537" font-family="Inter, sans-serif" font-size="13" font-weight="600" fill="#ECEFF4">Workspace</text>
+  <text x="130" y="537" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">  isolated checkout · seatbelt / bwrap / e2b · token-scoped tools</text>
+  <text x="36" y="557" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">shell commands · git · npm · writes contained to per-run root</text>
+
+  <!-- Arrow: Sandbox → State -->
+  <line x1="260" y1="570" x2="260" y2="628" stroke="#2A3A4D" stroke-width="1.5" marker-end="url(#flow-arrow)"/>
+
+  <!-- ── Row 6: State & Observability ──────────────────────────────────── -->
+  <rect x="20" y="630" width="760" height="55" rx="8" fill="#141B24" stroke="#1E2A38" stroke-width="1.5"/>
+  <text x="36" y="648" font-family="JetBrains Mono, monospace" font-size="10" fill="#7D8694" letter-spacing="1">PERSIST</text>
+  <text x="36" y="667" font-family="Inter, sans-serif" font-size="14" font-weight="600" fill="#ECEFF4">State &amp; Observability</text>
+  <text x="230" y="667" font-family="Inter, sans-serif" font-size="11" fill="#7D8694">  SQLite (Mastra) · DuckDB traces · Mastra Studio UI</text>
+</svg>

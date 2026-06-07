@@ -5,6 +5,16 @@ idiomatic [Mastra](https://mastra.ai) v1 app and refactored into a reusable
 package set. The deployable reference unit is `apps/server`; the reusable
 building blocks are the `@nearform/mac*` packages.
 
+## Architecture
+
+**Package layers** — static dependency graph, top layer depends on those below:
+
+<img src="docs/architecture.svg" alt="MAC package layer architecture" width="800" />
+
+**Runtime event flow** — how a GitHub webhook or Slack message travels through the system:
+
+<img src="docs/event-flow.svg" alt="MAC runtime event flow" width="800" />
+
 ## The `@nearform/mac*` package set
 
 MAC (Mastra Agentic Coding) is a composable set of Mastra building blocks. A
