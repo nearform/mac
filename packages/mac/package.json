@@ -14,12 +14,14 @@
       "import": "./src/core/index.ts"
     }
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@mastra/core": "^1.37.1"
+    "@mastra/core": "^1.41.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

@@ -111,13 +111,45 @@ warns; build/typecheck/runtime pass so far. Revisit if zod-schema tools misbehav
   try/catch (boot never fails on an optional secret) + copy PEM to absolute `secrets/app.pem`.
 - **macOS has no `timeout`** — use background tasks + a polling loop instead.
 
+## Sandbox (`MAC_SANDBOX`)
+
+`apps/server/src/mastra/workspace.ts` selects the execution mode from a single
+`MAC_SANDBOX` env var (default `auto`). Local modes are built in; cloud providers
+are opt-in via a `SANDBOX_PROVIDERS` registry. The `WorkspaceFactory`/
+`resolveWorkspace` seam and all workflows/agents are unchanged. See README "Sandbox".
+
+- `auto` (default) — local host, native OS isolation where available
+  (`LocalSandbox.detectIsolation()`), else none.
+- `local` — local host, no isolation (trusted dev).
+- `seatbelt` — macOS `sandbox-exec`. `bwrap` — Linux bubblewrap.
+- `e2b`/`daytona`/`modal`/`blaxel`/`agentcore` — cloud; install the `@mastra/*`
+  package and register a one-line factory returning `{ sandbox }` (cloud providers
+  bring their own filesystem).
+
+Under a local isolation mode, `nativeSandbox` grants write to the checkout dir +
+network (`MAC_SANDBOX_ALLOW_NETWORK=0` to block). Mastra's profile allows reads
+globally but writes only to the workspace (+ /tmp), so tool caches (`HOME`, npm,
+XDG) are **redirected into the checkout** (`isolatedCacheEnv`) — no host
+`~/.npm`/`~/.cache` writes. **Verified** by `scripts/try-sandbox.ts`: under
+`seatbelt`/`auto`, a workspace write and a redirected cache write succeed while a
+`$HOME` write is blocked.
+
+## State directory (`MAC_STATE_DIR`)
+
+Local state (sqlite `mac.db`, `observability.duckdb`, and `workspaces/`) defaults
+to `<repo-root>/data` — `config.ts` resolves the root by walking up for
+`pnpm-workspace.yaml`, so it's cwd- and bundle-independent (no absolute path needed,
+unlike the old libsql-error-14 workaround). Override with `MAC_STATE_DIR` /
+`MAC_WORKSPACES_DIR`.
+
 ## Dropped / deferred (with reasons)
 
 - **Network egress firewall** (gondolin `allowedHttpHosts`; docker SNI-peek + coredns
   sinkhole; SSRF floor) — **deferred** per spike scope. `LocalSandbox` runs on the host with
   no isolation/egress firewall. Re-add (or swap to a remote sandbox) before production.
 - **gondolin QEMU sandbox + docker firewall sidecars** — replaced by Mastra `LocalSandbox`
-  (no `/dev/kvm` dependency); a remote `ComputeSDKSandbox` (E2B/Daytona) is the prod path.
+  (no `/dev/kvm` dependency); a remote Mastra sandbox provider (`@mastra/e2b`,
+  `@mastra/daytona`, …) is the prod path.
 - **JSONL envelope shim + `SessionReader`** — replaced by Mastra built-in AI tracing (Studio).
 - **Custom React/Vite admin dashboard** — Mastra Studio (`mastra dev`) for now.
 - **DAG runner, restart-count circuit breaker, daily/hourly stat rollups** — port only if a

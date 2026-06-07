@@ -1,3 +1,7 @@
+// MUST be first: loads <repo-root>/secrets/.env before any import below reads
+// process.env at module-eval. `mastra studio` loads THIS file directly (not
+// server.ts), so the env load can't live only in server.ts. (See ../load-env.ts.)
+import "../load-env.js";
 import { Mastra } from "@mastra/core";
 import { MastraCompositeStore } from "@mastra/core/storage";
 import { LibSQLStore } from "@mastra/libsql";
@@ -21,6 +25,7 @@ import {
   duckDbPath,
   defaultModel,
   agentMaxSteps,
+  logLevel,
   slackConfig,
   approvalLink,
   webhookSecret,
@@ -29,9 +34,12 @@ import {
   isManagedRepo,
 } from "./config.js";
 import { createChatAgent } from "./agents/chat.js";
+import { createChatMemory } from "./memory.js";
 import { createCodeWorkspace } from "./workspace.js";
+import { createMacHarness, createInteractiveDispatch } from "./harness.js";
 import { approvalRoute } from "./server/approval.js";
 import { healthApiRoute, buildApiRoute, runApiRoute } from "./server/cli-api.js";
+import type { InteractiveDispatch, WorkspaceFactory } from "@nearform/mac/core";
 
 /**
  * MAC maintenance platform — Mastra entry point.
@@ -81,14 +89,21 @@ interface MacPresetSlice {
   dispatch: DispatchFn;
 }
 
-async function buildPreset(): Promise<MacPresetSlice> {
+async function buildPreset(deps: {
+  workspaceFactory: WorkspaceFactory;
+  chatAgent: Agent;
+  interactive?: InteractiveDispatch;
+  logger: PinoLogger;
+}): Promise<MacPresetSlice> {
   const sc = slackConfig();
   const mac = await createMacApp({
     model: defaultModel(),
-    workspaceFactory: {
-      create: (taskId: string, options?: { token?: string; skills?: string[] }) =>
-        createCodeWorkspace(taskId, options),
-    },
+    workspaceFactory: deps.workspaceFactory,
+    // Dispatch logs go through the shared Mastra logger (same format as workflows).
+    logger: deps.logger,
+    // Interactive/conversational lane (opt-in). When present, `agent`-target
+    // routes (chat) are driven by the Harness instead of bare agent.generate.
+    interactive: deps.interactive,
     // Signed ✅/❌ approval links for the build workflow's post_architect gate
     // (reads publicBaseUrl + HMAC from env — must stay app-side).
     approvalLinks: { link: (runId, decision) => approvalLink(runId, decision) },
@@ -128,7 +143,7 @@ async function buildPreset(): Promise<MacPresetSlice> {
       defineAgent({
         id: "chat",
         description: "Conversational GitHub assistant.",
-        create: () => createChatAgent(),
+        create: () => deps.chatAgent,
       }),
     ],
     // GitHub-dependent workflows require `githubCapabilities`, so enable them
@@ -151,8 +166,47 @@ async function buildPreset(): Promise<MacPresetSlice> {
   };
 }
 
+// Shared singletons hoisted so both the Mastra instance and the (opt-in)
+// interactive Harness reuse them: the composite store, the chat agent, and the
+// pluggable workspace factory.
+const storage = new MastraCompositeStore({
+  id: "mac-storage",
+  default: new LibSQLStore({ id: "mac", url: dbUrl() }),
+  domains: {
+    observability: new DuckDBStore({ id: "mac-obs", path: duckDbPath() }).observability,
+  },
+});
+
+const chatAgent = createChatAgent();
+
+// One logger shared by the Mastra instance AND the dispatch (so route → agent/
+// workflow lines match the workflow/agent log format). Env-driven level.
+const logger = new PinoLogger({ name: "mac", level: logLevel() });
+
+const workspaceFactory: WorkspaceFactory = {
+  create: (taskId, options) => createCodeWorkspace(taskId, options),
+};
+
+// Interactive lane (EXPERIMENTAL, opt-in via MAC_INTERACTIVE_HARNESS=1). The
+// Harness reuses the store + chat agent + workspace factory above and exposes the
+// deterministic workflows as tools. `getWorkflow` is lazy: `mastra` is declared
+// below, but the closure is only invoked when a harness tool actually runs.
+const harness =
+  process.env.MAC_INTERACTIVE_HARNESS === "1"
+    ? createMacHarness({
+        storage,
+        memory: createChatMemory(),
+        workspaceFactory,
+        chatAgent,
+        getWorkflow: (id) => mastra.getWorkflow(id),
+      })
+    : undefined;
+const interactive: InteractiveDispatch | undefined = harness
+  ? createInteractiveDispatch(harness)
+  : undefined;
+
 // Top-level await (ESM TLA; tsx + mastra build support it).
-const preset = await buildPreset();
+const preset = await buildPreset({ workspaceFactory, chatAgent, interactive, logger });
 
 /**
  * The single router for inbound events (GitHub webhook + Slack). Consumed by
@@ -165,14 +219,13 @@ export const mastra = new Mastra({
   // Composite store (per Mastra's observability docs): operational domains
   // (threads, messages, workflow snapshots, …) stay on LibSQL; the OBSERVABILITY
   // domain (AI traces + metrics — analytical/OLAP data) is routed to DuckDB.
-  storage: new MastraCompositeStore({
-    id: "mac-storage",
-    default: new LibSQLStore({ id: "mac", url: dbUrl() }),
-    domains: {
-      observability: new DuckDBStore({ id: "mac-obs", path: duckDbPath() }).observability,
-    },
-  }),
-  logger: new PinoLogger({ name: "mac", level: "info" }),
+  // Hoisted above so the interactive Harness shares the same store.
+  storage,
+  // Log level is env-driven (`MAC_LOG_LEVEL`, default `info`). Bump to `debug` for
+  // verbose dev output: `MAC_LOG_LEVEL=debug pnpm dev` (levels: debug | info | warn
+  // | error | silent). Per-run agent detail (each sandbox `execute_command`, with
+  // I/O) lives in Studio's Observability tab — see the `observability` config below.
+  logger,
   // AI tracing → persisted to the DuckDB observability store, surfaced in
   // Studio's Observability tab + metrics. Without this, agent runs (incl. every
   // sandbox `execute_command` the build agents make, with inputs/outputs) leave

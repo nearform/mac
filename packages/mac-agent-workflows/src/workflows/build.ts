@@ -176,6 +176,7 @@ type BuildState = z.infer<typeof buildState>;
 // to map a 👍/👎 reaction on a phase to a Mastra scorer for that agent.
 
 const PHASES = [
+  { key: "checkout", label: "Checkout" },
   { key: "guardrails", label: "Guardrails" },
   { key: "architect", label: "Architect" },
   { key: "approval", label: "Approval" },
@@ -222,6 +223,16 @@ function upsertBefore(
   const idx = progress.findIndex((e) => e.key === beforeKey);
   if (idx < 0) return [...progress, entry];
   return [...progress.slice(0, idx), entry, ...progress.slice(idx)];
+}
+
+/** Repo-qualified issue ref for logs (e.g. `cliftonc/lastlight#82`) — runs span repos. */
+function ref(s: { owner: string; repo: string; issueNumber: number }): string {
+  return `${s.owner}/${s.repo}#${s.issueNumber}`;
+}
+
+/** GitHub web URL for the triggering issue (clickable in the status comment / Slack). */
+function issueUrl(st: BuildState): string {
+  return `https://github.com/${st.owner}/${st.repo}/issues/${st.issueNumber}`;
 }
 
 /** GitHub web URL for the work branch (clickable in the status comment / Slack). */
@@ -289,6 +300,37 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
   const mintWriteToken = async (): Promise<string> =>
     (await fns.tokenBroker.mint("repo-write")).token;
 
+  /**
+   * Resolve the issue title. Only the GitHub webhook trigger carries it on the
+   * envelope — Slack/CLI/HTTP triggers don't — so when it's missing we fetch it
+   * from the API (we already have a read token in hand for the clone) to avoid a
+   * "(untitled)" status comment. Best-effort: a failure leaves the title empty.
+   */
+  const resolveIssueTitle = async (
+    owner: string,
+    repo: string,
+    issueNumber: number,
+    given: string,
+    token: string,
+  ): Promise<string> => {
+    if (given.trim()) return given;
+    try {
+      const octokit = fns.createOctokit({ token });
+      const { data } = await octokit.rest.issues.get({
+        owner,
+        repo,
+        issue_number: issueNumber,
+      });
+      return data.title ?? "";
+    } catch (err) {
+      console.warn(
+        `[build] could not fetch title for ${owner}/${repo}#${issueNumber}:`,
+        err,
+      );
+      return "";
+    }
+  };
+
   // ── Context + render helpers ─────────────────────────────────────────────────
 
   /** The live status comment body — re-rendered (in order) after each update. */
@@ -307,7 +349,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       return line;
     });
     return [
-      `### 🤖 MAC — build for #${st.issueNumber}`,
+      `### 🤖 MAC — build for [#${st.issueNumber}](${issueUrl(st)})`,
       "",
       `**${st.issueTitle || "(untitled)"}**`,
       "",
@@ -479,27 +521,31 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
   async function slackTerminal(st: BuildState): Promise<void> {
     if (!st.slackChannel || !st.slackThread || !deps.slack) return;
     const target = { channel: st.slackChannel, thread: st.slackThread };
-    const ref = `${st.owner}/${st.repo}#${st.issueNumber}`;
+    const r = ref(st);
     let msg: string;
     if (st.aborted) {
-      msg = `⛔ Build for ${ref} aborted — ${st.abortReason ?? "see the issue for details"}.`;
+      msg = `⛔ Build for ${r} aborted — ${st.abortReason ?? "see the issue for details"}.`;
     } else if (st.prUrl) {
-      msg = `✅ Build for ${ref} complete (verdict: ${st.lastVerdict ?? "n/a"}) — PR: ${st.prUrl}`;
+      msg = `✅ Build for ${r} complete (verdict: ${st.lastVerdict ?? "n/a"}) — PR: ${st.prUrl}`;
     } else if (st.filesChanged.length === 0) {
-      msg = `ℹ️ Build for ${ref} finished with no code changes — no PR opened.`;
+      msg = `ℹ️ Build for ${r} finished with no code changes — no PR opened.`;
     } else {
-      msg = `✅ Build for ${ref} finished (verdict: ${st.lastVerdict ?? "n/a"}). No PR link available.`;
+      msg = `✅ Build for ${r} finished (verdict: ${st.lastVerdict ?? "n/a"}). No PR link available.`;
     }
     await deps.slack.postMessage(target, msg);
   }
 
   // ── Steps ────────────────────────────────────────────────────────────────────
 
-  const guardrailsStep = createStep({
-    id: "guardrails",
+  // Setup: build the run's BuildState, then clone + install deps into the
+  // sandbox. Everything downstream (guardrails included) receives a ready,
+  // checked-out workspace — guardrails is then purely a readiness check.
+  const setupStep = createStep({
+    id: "setup",
     inputSchema: triggerSchema,
     outputSchema: buildState,
-    execute: async ({ inputData, runId, tracingContext }) => {
+    execute: async ({ inputData, runId, mastra }) => {
+      const logger = mastra.getLogger();
       // runId in the taskId isolates each run's checkout (an interrupted run can't
       // poison the next). Resume keeps the same runId, so later steps reuse it.
       // Branch is per-RUN: it includes the short runId so every build starts a
@@ -515,14 +561,28 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       const ws = deps.workspaceFactory.create(taskId);
       await ws.init();
 
+      // One read token for both the title lookup and the clone below.
+      const token = await mintReadToken();
+      const issueTitle = await resolveIssueTitle(
+        inputData.owner,
+        inputData.repo,
+        inputData.issueNumber,
+        inputData.issueTitle,
+        token,
+      );
+
+      logger.info(
+        `[build] ${ref(inputData)} "${issueTitle || "(untitled)"}" — starting build (branch ${branch}, run ${shortRun})`,
+      );
+
       // Initial state + immediate "build started" signal: post the live status
-      // comment with guardrails 🔄 running and a 🚀 reaction BEFORE the slow
+      // comment with checkout 🔄 running and a 🚀 reaction BEFORE the slow
       // clone/npm-install, so the issue lights up right away.
       let state: BuildState = {
         owner: inputData.owner,
         repo: inputData.repo,
         issueNumber: inputData.issueNumber,
-        issueTitle: inputData.issueTitle,
+        issueTitle,
         issueBody: inputData.issueBody,
         baseBranch: inputData.baseBranch,
         maxCycles: inputData.maxCycles,
@@ -550,15 +610,17 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       state = {
         ...state,
         ...(await publishPhase(state, ws, {
-          phase: "guardrails",
+          phase: "checkout",
           status: "running",
-          detail: "cloning & checking tooling…",
+          detail: "cloning repository…",
           reaction: "rocket",
         })),
       };
 
       // Deterministic clone + branch in the sandbox (workflow owns git).
-      const token = await mintReadToken();
+      logger.info(
+        `[build] ${ref(state)} checkout: cloning ${inputData.owner}/${inputData.repo}@${inputData.baseBranch}…`,
+      );
       await cloneRepo(ws, {
         owner: inputData.owner,
         repo: inputData.repo,
@@ -566,9 +628,10 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
         baseBranch: inputData.baseBranch,
       });
       await createBranch(ws, branch);
+      logger.info(`[build] ${ref(state)} checkout: clone complete (branch ${branch})`);
 
       // Install dependencies DETERMINISTICALLY (workflow-owned, like git) before
-      // the agent runs. Previously the agent was asked to install "if needed" and
+      // the agents run. Previously the agent was asked to install "if needed" and
       // sometimes skipped it → false BLOCK ("vitest: command not found"). Doing it
       // here guarantees the test runner is on disk for guardrails AND the later
       // executor/review phases (same checkout). Best-effort; the log is committed
@@ -576,30 +639,68 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       state = {
         ...state,
         ...(await publishPhase(state, ws, {
-          phase: "guardrails",
+          phase: "checkout",
           status: "running",
           detail: "installing dependencies…",
         })),
       };
+      logger.info(`[build] ${ref(state)} checkout: installing dependencies…`);
       const installResult = await installDependencies(ws);
-      console.log(
-        `[build] deps install: ran=${installResult.ran} ok=${installResult.ok} pm=${installResult.packageManager}`,
+      logger.info(
+        `[build] ${ref(state)} checkout: deps install ran=${installResult.ran} ok=${installResult.ok} pm=${installResult.packageManager}`,
       );
       await writeArtifact(ws, artifact(state, "deps-install.log"), installResult.output);
+      await writeArtifact(ws, artifact(state, "status.md"), statusMd(state, "checkout"));
+
+      const depsDetail = !installResult.ran
+        ? "cloned, no deps to install"
+        : installResult.ok
+          ? "cloned, deps installed"
+          : "cloned, deps install failed";
+      const upd = await publishPhase(state, ws, {
+        phase: "checkout",
+        status: "done",
+        detail: depsDetail,
+        commitMessage: `chore(mac): checkout for #${state.issueNumber}`,
+      });
+      logger.info(`[build] ${ref(state)} checkout: ${depsDetail}`);
+      return { ...state, ...upd };
+    },
+  });
+
+  // Guardrails: a readiness check on the already-checked-out workspace —
+  // confirm a usable test command exists before any code is written. BLOCKED
+  // aborts the build (unless this is a bootstrap task).
+  const guardrailsStep = createStep({
+    id: "guardrails",
+    inputSchema: buildState,
+    outputSchema: buildState,
+    execute: async ({ inputData, tracingContext, mastra }) => {
+      const logger = mastra.getLogger();
+      let st = inputData;
+      if (st.aborted) return st; // setup failed upstream — skip.
+
+      const ws = deps.workspaceFactory.create(st.taskId);
+      await ws.init();
+      logger.info(`[build] ${ref(st)} guardrails: checking test tooling…`);
+      st = await markRunning(st, ws, "guardrails", "checking test framework…");
 
       // Pre-flight: confirm the checkout has a usable test command.
       const agent = deps.agents.byId("guardrails");
       const res = await agent.generate(
-        `Run the pre-flight guardrails check on this checkout of ${inputData.owner}/${inputData.repo}.`,
-        { requestContext: buildAgentContext(taskId, undefined, SKILLS.guardrails), tracingContext },
+        `Run the pre-flight guardrails check on this checkout of ${st.owner}/${st.repo}.`,
+        { requestContext: buildAgentContext(st.taskId, undefined, SKILLS.guardrails), tracingContext },
       );
       const { ready, report } = parseGuardrails(res.text ?? "");
 
       // BLOCKED aborts the build unless this is a bootstrap task.
-      const blocked = !ready && !inputData.bootstrap;
+      const blocked = !ready && !st.bootstrap;
+      logger.info(
+        `[build] ${ref(st)} guardrails: ${ready ? "READY" : blocked ? "BLOCKED — aborting build" : "not ready (bootstrap bypass)"}`,
+      );
 
       const result: BuildState = {
-        ...state,
+        ...st,
         ready,
         guardrailsReport: report,
         aborted: blocked,
@@ -612,7 +713,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
         ws,
         artifact(result, "guardrails-report.md"),
         `# Guardrails report\n\nStatus: ${ready ? "READY" : "BLOCKED"}` +
-          (blocked ? " (aborting build)" : inputData.bootstrap && !ready ? " (bootstrap bypass)" : "") +
+          (blocked ? " (aborting build)" : st.bootstrap && !ready ? " (bootstrap bypass)" : "") +
           `\n\n${report || "(no report text)"}\n`,
       );
       await writeArtifact(ws, artifact(result, "status.md"), statusMd(result, "guardrails"));
@@ -631,32 +732,84 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
     id: "architect",
     inputSchema: buildState,
     outputSchema: buildState,
-    execute: async ({ inputData, tracingContext }) => {
+    execute: async ({ inputData, tracingContext, mastra }) => {
+      const logger = mastra.getLogger();
       let st = inputData;
       if (st.aborted) return st; // guardrails BLOCKED — skip.
 
       const ws = deps.workspaceFactory.create(st.taskId);
       await ws.init();
+      logger.info(`[build] ${ref(st)} architect: analyzing codebase & planning…`);
       st = await markRunning(st, ws, "architect", "analyzing the codebase…");
 
-      const token = await mintReadToken();
       const agent = deps.agents.byId("architect");
-      const res = await agent.generate(
-        [
-          "Produce the implementation plan for this issue.",
-          "",
-          issueContext(st),
-          "",
-          st.guardrailsReport
-            ? `Guardrails report (test/lint/typecheck commands):\n${st.guardrailsReport}`
-            : "",
-        ].join("\n"),
-        { requestContext: buildAgentContext(st.taskId, token, SKILLS.architect), tracingContext },
-      );
-      const plan = res.text ?? "";
-      const result = { ...st, plan };
+      // Workspace-only: no GitHub read token (the checkout is already on disk and
+      // the GitHub read tools just churn weaker models — see createArchitectAgent).
+      const promptText = [
+        "Produce the implementation plan for this issue.",
+        "",
+        issueContext(st),
+        "",
+        st.guardrailsReport
+          ? `Guardrails report (test/lint/typecheck commands):\n${st.guardrailsReport}`
+          : "",
+      ].join("\n");
 
-      await writeArtifact(ws, artifact(st, "architect-plan.md"), plan || "(architect produced no plan)");
+      // Architect step budget: explore for a bounded number of tool-steps, then
+      // FORCE the plan. Weak local models don't stop exploring on their own (they
+      // loop on grep/read until the global maxSteps cap, then return empty text).
+      // After ARCHITECT_EXPLORE_STEPS we set toolChoice:"none" via prepareStep, so
+      // the next step has no tools and the model MUST emit the plan as text — using
+      // the context it already gathered. This overrides the (high) global maxSteps
+      // for this phase only; the executor/reviewer keep the larger budget.
+      const ARCHITECT_EXPLORE_STEPS = 40;
+
+      // Empty-plan guard: even with the forced final answer, retry once if the
+      // model still returns blank, before giving up.
+      let plan = "";
+      const maxAttempts = 2;
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        const res = await agent.generate(promptText, {
+          requestContext: buildAgentContext(st.taskId, undefined, SKILLS.architect),
+          tracingContext,
+          maxSteps: ARCHITECT_EXPLORE_STEPS + 2,
+          // Once the exploration budget is spent, disable tools so the model is
+          // forced to write the plan instead of calling another tool.
+          prepareStep: ({ stepNumber }: { stepNumber: number }) =>
+            stepNumber >= ARCHITECT_EXPLORE_STEPS ? { toolChoice: "none" as const } : undefined,
+        });
+        plan = (res.text ?? "").trim();
+        if (plan) break;
+        logger.warn(
+          `[build] ${ref(st)} architect: empty plan on attempt ${attempt}/${maxAttempts}` +
+            (attempt < maxAttempts ? " — retrying" : ""),
+        );
+      }
+
+      // Still nothing — abort loudly rather than proceed with an empty plan (the
+      // executor would otherwise improvise from the issue body, masking the gap).
+      if (!plan) {
+        const abortReason =
+          "Architect produced no plan — the model exhausted its tool-step budget " +
+          "without writing one. Raise MAC_AGENT_MAX_STEPS or route the architect " +
+          "phase to a stronger model (MAC_MODELS), then retry.";
+        logger.warn(`[build] ${ref(st)} architect: ${abortReason}`);
+        const aborted = { ...st, plan: "", aborted: true, abortReason };
+        await writeArtifact(ws, artifact(st, "architect-plan.md"), "(architect produced no plan)");
+        await writeArtifact(ws, artifact(st, "status.md"), statusMd(aborted, "architect"));
+        const upd = await publishPhase(aborted, ws, {
+          phase: "architect",
+          status: "failed",
+          detail: "no plan produced",
+          commitMessage: `chore(mac): architect produced no plan for #${st.issueNumber}`,
+        });
+        return { ...aborted, ...upd };
+      }
+
+      const result = { ...st, plan };
+      logger.info(`[build] ${ref(st)} architect: plan ready (${plan.length} chars)`);
+
+      await writeArtifact(ws, artifact(st, "architect-plan.md"), plan);
       await writeArtifact(ws, artifact(st, "status.md"), statusMd(result, "architect"));
 
       // Link the committed plan on the Architect row so it's reviewable from the
@@ -685,7 +838,8 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       branch: z.string(),
       plan: z.string(),
     }),
-    execute: async ({ inputData, resumeData, suspend }) => {
+    execute: async ({ inputData, resumeData, suspend, mastra }) => {
+      const logger = mastra.getLogger();
       const st = inputData;
       if (st.aborted) return st; // guardrails BLOCKED — no plan to approve.
 
@@ -694,6 +848,9 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
 
       if (resumeData) {
         const approved = resumeData.decision === "approve";
+        logger.info(
+          `[build] ${ref(st)} approval: plan ${approved ? "approved — implementing" : "rejected — aborting"}`,
+        );
         const result = {
           ...st,
           approved,
@@ -709,6 +866,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       }
 
       // First pass: mark the gate as awaiting in the status comment, then suspend.
+      logger.info(`[build] ${ref(st)} approval: awaiting plan approval (suspended)`);
       await publishPhase(st, ws, {
         phase: "approval",
         status: "awaiting",
@@ -732,12 +890,14 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
     id: "executor",
     inputSchema: buildState,
     outputSchema: buildState,
-    execute: async ({ inputData, tracingContext }) => {
+    execute: async ({ inputData, tracingContext, mastra }) => {
+      const logger = mastra.getLogger();
       let st = inputData;
       if (st.aborted) return st;
 
       const ws = deps.workspaceFactory.create(st.taskId);
       await ws.init();
+      logger.info(`[build] ${ref(st)} executor: implementing the plan…`);
       st = await markRunning(st, ws, "executor", "implementing the plan…");
 
       const agent = deps.agents.byId("executor");
@@ -755,6 +915,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       );
       const executorSummary = res.text ?? "";
       const result = { ...st, executorSummary, cycle: 0 };
+      logger.info(`[build] ${ref(st)} executor: implementation complete`);
 
       await writeArtifact(
         ws,
@@ -790,7 +951,8 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
     id: "executor_fix",
     inputSchema: buildState,
     outputSchema: buildState,
-    execute: async ({ inputData, tracingContext }) => {
+    execute: async ({ inputData, tracingContext, mastra }) => {
+      const logger = mastra.getLogger();
       let st = inputData;
       // Review was APPROVE / aborted / out of budget → nothing to fix.
       if (st.aborted || st.lastVerdict !== "REQUEST_CHANGES" || st.cycle >= st.maxCycles) {
@@ -800,6 +962,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       const ws = deps.workspaceFactory.create(st.taskId);
       await ws.init();
       const cycle = st.cycle + 1;
+      logger.info(`[build] ${ref(st)} fix cycle ${cycle}: addressing review feedback…`);
       const fixKey = `fix-${cycle}`;
       st = {
         ...st,
@@ -833,6 +996,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
         `# Fix cycle ${cycle}\n\n${res.text ?? "(no summary)"}\n`,
       );
       st = { ...st, progress: setStatus(st.progress, fixKey, "done", "changes applied") };
+      logger.info(`[build] ${ref(st)} fix cycle ${cycle}: changes applied`);
       st = {
         ...st,
         ...(await publishPhase(st, ws, {
@@ -847,13 +1011,15 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
     id: "review",
     inputSchema: buildState,
     outputSchema: buildState,
-    execute: async ({ inputData, tracingContext }) => {
+    execute: async ({ inputData, tracingContext, mastra }) => {
+      const logger = mastra.getLogger();
       let st = inputData;
       if (st.aborted) return st;
 
       const ws = deps.workspaceFactory.create(st.taskId);
       await ws.init();
       const reviewNum = st.cycle + 1;
+      logger.info(`[build] ${ref(st)} review cycle ${reviewNum}: reviewing branch diff…`);
       const reviewKey = `review-${reviewNum}`;
       st = {
         ...st,
@@ -884,6 +1050,9 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       );
       const { event, body } = parseVerdict(res.text ?? "");
       const exhausted = event !== "APPROVE" && st.cycle >= st.maxCycles;
+      logger.info(
+        `[build] ${ref(st)} review cycle ${reviewNum}: ${event}${exhausted ? " (budget exhausted)" : ""}`,
+      );
       let result = {
         ...st,
         lastVerdict: event,
@@ -929,13 +1098,15 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
     id: "finalize",
     inputSchema: buildState,
     outputSchema: buildState,
-    execute: async ({ inputData }) => {
+    execute: async ({ inputData, mastra }) => {
+      const logger = mastra.getLogger();
       const st = inputData;
 
       const ws = deps.workspaceFactory.create(st.taskId);
       await ws.init();
 
       if (st.aborted) {
+        logger.info(`[build] ${ref(st)} build aborted — ${st.abortReason ?? "unknown reason"}`);
         await writeArtifact(ws, artifact(st, "status.md"), statusMd(st, "aborted"));
         const upd = await publishPhase(st, ws, {
           commitMessage: `chore(mac): aborted #${st.issueNumber}`,
@@ -946,6 +1117,9 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
       const diff = st.diff || (await workingDiff(ws, st.baseBranch));
       const filesChanged = await changedFiles(ws, st.baseBranch);
       const result = { ...st, diff, filesChanged };
+      logger.info(
+        `[build] ${ref(st)} build complete — verdict ${st.lastVerdict ?? "n/a"}, ${st.cycle} review cycle(s), ${filesChanged.length} file(s) changed`,
+      );
 
       await writeArtifact(
         ws,
@@ -982,22 +1156,30 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
     id: "pr",
     inputSchema: buildState,
     outputSchema: buildState,
-    execute: async ({ inputData }) => {
+    execute: async ({ inputData, mastra }) => {
+      const logger = mastra.getLogger();
       let st = inputData;
       const ws = deps.workspaceFactory.create(st.taskId);
       await ws.init();
 
       if (!st.createPr || !st.publishProgress || st.aborted || st.filesChanged.length === 0) {
+        const reason = st.aborted
+          ? "build aborted"
+          : st.filesChanged.length === 0
+            ? "no changes"
+            : "disabled";
+        logger.info(`[build] ${ref(st)} PR skipped — ${reason}`);
         const upd = await publishPhase(st, ws, {
           phase: "pr",
           status: "skipped",
-          detail: st.aborted ? "build aborted" : st.filesChanged.length === 0 ? "no changes" : "disabled",
+          detail: reason,
         });
         const done = { ...st, ...upd };
         await slackTerminal(done);
         return done;
       }
 
+      logger.info(`[build] ${ref(st)} PR: opening pull request…`);
       st = await markRunning(st, ws, "pr", "opening pull request…");
       const token = await mintWriteToken();
       const octokit = fns.createOctokit({ token });
@@ -1033,8 +1215,9 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
           body,
         });
         result = { ...st, prUrl: data.html_url, prNumber: data.number };
+        logger.info(`[build] ${ref(st)} PR opened — #${data.number} ${data.html_url}`);
       } catch (e) {
-        console.warn(`[build] PR creation failed: ${(e as Error).message}`);
+        logger.warn(`[build] ${ref(st)} PR creation failed: ${(e as Error).message}`);
       }
 
       await writeArtifact(ws, artifact(st, "status.md"), statusMd(result, "pr_created"));
@@ -1058,6 +1241,7 @@ export function createBuildWorkflow(deps: BuildDeps): Workflow {
     inputSchema: triggerSchema,
     outputSchema: buildState,
   })
+    .then(setupStep)
     .then(guardrailsStep)
     .then(architectStep)
     .then(approvalStep)

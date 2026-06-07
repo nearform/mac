@@ -74,9 +74,11 @@ export function createPrReviewWorkflow(deps: PrReviewDeps): Workflow {
     id: "review",
     inputSchema,
     outputSchema,
-    execute: async ({ inputData, tracingContext }) => {
+    execute: async ({ inputData, tracingContext, mastra }) => {
+      const logger = mastra.getLogger();
       const { owner, repo, number } = inputData;
       const ref = `${owner}/${repo}#${number}`;
+      logger.info(`[pr-review] ${ref} — reviewing pull request…`);
       // Slack feedback target (the "reviewing…" start ack is posted by dispatch;
       // here we post only the verdict+link completion). null when not slack-initiated.
       const slackTarget =
@@ -95,6 +97,7 @@ export function createPrReviewWorkflow(deps: PrReviewDeps): Workflow {
       );
 
       const { event, body } = parseVerdict(result.text ?? "");
+      logger.info(`[pr-review] ${ref} — verdict ${event}; posting review…`);
 
       // Post deterministically from the workflow (not via the agent's tool loop).
       const octokit = fns.createOctokit({ token });
@@ -105,6 +108,9 @@ export function createPrReviewWorkflow(deps: PrReviewDeps): Workflow {
         event,
         body,
       });
+      logger.info(
+        `[pr-review] ${ref} — review posted: ${posted.state || event}${posted.url ? ` ${posted.url}` : ""}`,
+      );
 
       if (slackTarget && deps.postSlackMessage) {
         const link = posted.url ? ` — ${posted.url}` : "";

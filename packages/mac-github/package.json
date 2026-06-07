@@ -14,13 +14,15 @@
       "import": "./src/capabilities.ts"
     }
   },
-  "files": ["src"],
+  "files": [
+    "src"
+  ],
   "scripts": {
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
+    "@mastra/core": "^1.41.0",
     "@nearform/mac": "workspace:*",
-    "@mastra/core": "^1.37.1",
     "@octokit/auth-app": "^7.1.0",
     "octokit": "^5.0.5",
     "zod": "^4.4.3"

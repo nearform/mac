@@ -57,6 +57,65 @@ pnpm -C apps/server typecheck
 models) copied from the original. See `MIGRATION.md` for what's intentionally dropped/deferred
 in this spike (notably the network-egress firewall).
 
+Local state (the SQLite DB, the DuckDB observability file, and the per-run sandbox
+`workspaces/`) defaults to `<repo-root>/data/` — auto-detected, no absolute paths
+needed. Override with `MAC_STATE_DIR` / `MAC_WORKSPACES_DIR`.
+
+### Sandbox
+
+Agents/workflows run shell commands inside a [Mastra `Workspace`](https://mastra.ai/docs/workspace/sandbox).
+A single **`MAC_SANDBOX`** env var (default `auto`) picks the execution mode, from a
+registry in `apps/server/src/mastra/workspace.ts`. Local modes are built in; cloud
+providers are opt-in (install the package + register a one-line factory).
+
+| `MAC_SANDBOX` | Where | Isolation | Needs |
+| --- | --- | --- | --- |
+| `auto` (default) | local host | native (Seatbelt/bwrap) if available, else none | — |
+| `local` | local host | none (direct execution) | — |
+| `seatbelt` | local host | macOS `sandbox-exec` | macOS |
+| `bwrap` | local host | Linux bubblewrap | bubblewrap installed |
+| `e2b` | cloud | remote (own VM/container) | `@mastra/e2b` + `E2B_API_KEY` |
+| `daytona` | cloud | remote | `@mastra/daytona` + creds |
+| `modal` / `blaxel` / `agentcore` | cloud | remote | `@mastra/modal` / `@mastra/blaxel` / `@mastra/agentcore-runtime` |
+
+Under a local isolation mode the per-run workspace **root** (plus `/tmp` and standard
+device nodes like `/dev/null`) is the **only writable host area**. The repo is
+checked out into a `checkout/` sub-folder of that root, and tool caches (`HOME`, npm,
+XDG) are redirected to the root **alongside** the checkout — never **inside** it.
+So a run never writes to host `~/.npm`/`~/.cache`, and the caches stay out of the git
+tree (the workflow's `git add -A` can't sweep them into a commit). Knobs:
+`MAC_SANDBOX_ALLOW_NETWORK=0` blocks network; `MAC_SANDBOX_TIMEOUT_MS` sets the
+per-command timeout.
+
+```bash
+MAC_SANDBOX=local pnpm dev      # no isolation (trusted dev)
+MAC_SANDBOX=auto  pnpm dev      # isolate where the OS supports it (default)
+```
+
+**Adding a cloud provider** — two steps (E2B example):
+
+```bash
+pnpm --filter @nearform/mac-server add @mastra/e2b
+```
+
+```ts
+// apps/server/src/mastra/workspace.ts — add to SANDBOX_PROVIDERS:
+import { E2BSandbox } from "@mastra/e2b";                       // needs E2B_API_KEY
+const SANDBOX_PROVIDERS = {
+  e2b: () => ({ sandbox: new E2BSandbox({ timeout: 15 * 60_000 }) }),
+};
+```
+
+Then run with `MAC_SANDBOX=e2b`. Cloud factories return `{ sandbox }` only (they
+bring their own filesystem); everything downstream (workflows, agents) is unchanged
+— they consume the `Workspace` via the `WorkspaceFactory` seam.
+
+Verify isolation locally (workspace + cache writes succeed; `$HOME` blocked):
+
+```bash
+node_modules/.bin/tsx scripts/try-sandbox.ts        # runs: local, then seatbelt
+```
+
 ## Design
 
 - [MAC Package Refactor](docs/mastra-package-refactor.md) — the package-boundary design.

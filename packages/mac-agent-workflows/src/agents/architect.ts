@@ -2,7 +2,7 @@ import { Agent } from "@mastra/core/agent";
 import type { RequestContext } from "@mastra/core/request-context";
 import { defaultPromptResolver } from "../loaders/prompts.js";
 import { persona } from "./persona.js";
-import { RC_TOKEN, resolveWorkspace } from "./runtime.js";
+import { resolveWorkspace } from "./runtime.js";
 import type { CodingAgentDeps } from "./types.js";
 
 /**
@@ -14,9 +14,15 @@ import type { CodingAgentDeps } from "./types.js";
  * workflow owns git, the executor owns the edits. The plan text becomes the
  * `post_architect` approval gate's payload and the executor's brief.
  *
- * REGISTERED agent so its LLM + tool calls trace to Studio. Its sandbox +
- * GitHub read tools are per-run, resolved dynamically from the requestContext
- * (taskId + token) the build step passes (see ./runtime.ts).
+ * Tools: WORKSPACE-ONLY (read_file/list_files/grep over the local checkout). It
+ * deliberately gets NO GitHub read tools — those duplicate the workspace file
+ * tools (two ways to read the same files) and weaker models churn between them
+ * instead of converging on the plan (observed: a read-loop that exhausted the
+ * step budget and returned an empty plan). The checkout is already on disk, so
+ * the workspace tools are sufficient. (The executor is wired the same way.)
+ *
+ * REGISTERED agent so its LLM + tool calls trace to Studio; its sandbox is the
+ * per-run checkout, resolved from the requestContext taskId (see ./runtime.ts).
  */
 export function createArchitectAgent(deps: CodingAgentDeps): Agent {
   const resolver = deps.promptResolver ?? defaultPromptResolver;
@@ -25,10 +31,6 @@ export function createArchitectAgent(deps: CodingAgentDeps): Agent {
     name: "architect",
     instructions: persona() + resolver.resolve("architect"),
     model: deps.model,
-    tools: ({ requestContext }: { requestContext: RequestContext }) => {
-      const token = requestContext.get(RC_TOKEN);
-      return typeof token === "string" && token ? deps.createReadTools({ token }) : {};
-    },
     workspace: ({ requestContext }: { requestContext: RequestContext }) =>
       resolveWorkspace(deps.workspaceFactory, requestContext),
     defaultOptions: { maxSteps: deps.maxSteps ?? 40 },

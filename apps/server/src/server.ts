@@ -1,7 +1,7 @@
-// Load .env BEFORE importing ./mastra — the Mastra instance reads config
-// (DB paths, model, GitHub App) at module-evaluation time, and ESM evaluates
-// imports in source order, so dotenv must be the very first import.
-import "dotenv/config";
+// Load env from <repo-root>/secrets/.env BEFORE importing ./mastra — the Mastra
+// instance reads config at module-evaluation time, and ESM evaluates imports in
+// source order, so this side-effect import must be first. (See ./load-env.ts.)
+import "./load-env.js";
 
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";

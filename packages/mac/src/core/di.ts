@@ -32,3 +32,29 @@ export interface WorkspaceFactory {
 export interface ApprovalLinkBuilder {
   link(runId: string, decision: "approve" | "reject"): string;
 }
+
+/** One interactive (conversational) turn handed to an {@link InteractiveDispatch}. */
+export interface InteractiveTurn {
+  /** The routed agent/mode id (e.g. "chat"). */
+  agentId: string;
+  /** The user's message text for this turn. */
+  message: string;
+  /** Stable per-conversation key (Slack thread / GitHub issue / CLI session). */
+  threadId: string;
+  /** The sender identity (memory resource id). */
+  resource: string;
+  /** Emit an assistant reply back to the originating surface. */
+  reply: (msg: string) => Promise<void>;
+}
+
+/**
+ * App-provided seam for the INTERACTIVE/conversational lane. When supplied to
+ * `createMacApp`, the host delegates `agent`-target routes to it instead of the
+ * built-in bare `agent.generate(...)` dispatch — letting the app drive a stateful
+ * surface (e.g. a Mastra `Harness`: modes, threads, tool/plan approvals,
+ * subagents) without `@nearform/mac` taking a dependency on the harness or any
+ * app code. The deterministic workflow lane is unaffected.
+ */
+export interface InteractiveDispatch {
+  handle(turn: InteractiveTurn): Promise<void>;
+}
