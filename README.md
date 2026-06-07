@@ -1,5 +1,7 @@
 # MAC — Mastra Agentic Coding
 
+> **MAC is a [Mastra](https://mastra.ai) port of [Last Light](https://lastlight.dev)** — an AI-powered GitHub repo-maintenance agent. The original project, its design history, and the thinking behind the agentic architecture are documented at **[lastlight.dev](https://lastlight.dev)**. Read that first for context on why this exists and what it's trying to do.
+
 **MAC** (Mastra Agentic Coding) — a GitHub repo-maintenance agent built as an
 idiomatic [Mastra](https://mastra.ai) v1 app and refactored into a reusable
 package set. The deployable reference unit is `apps/server`; the reusable
