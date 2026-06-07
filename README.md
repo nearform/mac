@@ -11,10 +11,6 @@ building blocks are the `@nearform/mac*` packages.
 
 <img src="docs/architecture.svg" alt="MAC package layer architecture" width="800" />
 
-**Runtime event flow** — how a GitHub webhook or Slack message travels through the system:
-
-<img src="docs/event-flow.svg" alt="MAC runtime event flow" width="800" />
-
 ## The `@nearform/mac*` package set
 
 MAC (Mastra Agentic Coding) is a composable set of Mastra building blocks. A
@@ -50,6 +46,10 @@ CHANGELOG.md             # versioning policy + the MAC refactor entry
 MIGRATION.md             # mapping, pinned API signatures, dropped/deferred log
 docs/                    # design docs (refactor design + examples)
 ```
+
+**Runtime event flow** — how a GitHub webhook or Slack message travels through the system:
+
+<img src="docs/event-flow.svg" alt="MAC runtime event flow" width="800" />
 
 ## Develop
 
