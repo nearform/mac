@@ -19,7 +19,7 @@ import {
 export interface MacAgents extends MacAgentRegistry {
   chat: Agent;
   reviewer: Agent;
-  buildReviewer: Agent;
+  "build-reviewer": Agent;
   guardrails: Agent;
   architect: Agent;
   executor: Agent;

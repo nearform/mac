@@ -35,6 +35,12 @@ Dependency direction (acyclic, asserted by `packages/mac/test/dependency-graph.t
 See **[docs/examples.md](docs/examples.md)** for runnable snippets (minimal PR
 reviewer, GitHub webhook app, Slack chat connector, full preset).
 
+> **Monorepo-only (Phase 10 pending).** The packages are `private`, `0.0.0`, and
+> source-only — their `exports` point at `./src/*.ts`. Consuming apps must list them
+> in `transpilePackages` (as `apps/server` does). External npm publish and proper
+> `dist/` outputs are tracked under Phase 10 ("Publish Readiness") in
+> `docs/mastra-package-refactor.md`.
+
 ## Layout
 
 ```

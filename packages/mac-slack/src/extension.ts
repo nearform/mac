@@ -9,9 +9,7 @@ import { slackCapabilities, type SlackCapabilities } from "./capabilities.js";
  * (functions / metadata) into the registry and returns a `runtime` hook wired
  * to the Socket Mode connector. The connector is long-running, so it is exposed
  * via `runtime.start()/stop()` rather than as an `apiRoutes` descriptor.
- *
- * (Phase 6-ready; not yet exercised by the reference app, which still calls
- * `startSlackConnector` directly from server.ts.)
+ * `server.ts` calls `mac.runtime?.start()` after the HTTP server is listening.
  */
 export function slack(config: SlackConfig): MacExtension {
   const bundle: SlackCapabilities = {

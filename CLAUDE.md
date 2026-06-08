@@ -32,5 +32,7 @@ mac <owner/repo#N>      # trigger a run (or: pnpm cli <owner/repo#N>)
   (packages are source-only, bundled via `transpilePackages`).
 - Local state (sqlite/duckdb/`workspaces/`) defaults to `<repo-root>/data`
   (auto-detected); override with `MAC_STATE_DIR` / `MAC_WORKSPACES_DIR`.
+- Agent skills container defaults to `packages/mac-agent-workflows/skills/`; override
+  with `MAC_SKILLS_DIR` (cwd-relative path to a replacement container dir).
 - Each subdirectory has its own `CLAUDE.md` with package-specific conventions —
   read it before working in that area.

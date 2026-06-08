@@ -7,9 +7,7 @@ import { serve } from "@hono/node-server";
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 import { MastraServer, type HonoBindings, type HonoVariables } from "@mastra/hono";
-import { mastra, macDispatch } from "./mastra/index.js";
-import { slackConfig } from "./mastra/config.js";
-import { startSlackConnector } from "@nearform/mac-slack";
+import { mastra, macRuntime } from "./mastra/index.js";
 
 /**
  * Self-owned Hono server that EMBEDS Mastra (via `@mastra/hono`), replacing the
@@ -68,15 +66,14 @@ serve({ fetch: app.fetch, port });
 // no server-start hook needed, and `mastra build` (which we no longer run) can't
 // accidentally open the socket since this is the runtime entrypoint, not a
 // module side-effect.
-const slack = slackConfig();
-if (slack && macDispatch) {
-  startSlackConnector(slack, macDispatch).catch((err: unknown) => {
-    console.error("[server] Slack connector failed to start:", err);
+//
+// `mac.runtime` is returned by `createMacApp` and combines all extension runtimes
+// (currently: the Slack Socket Mode connector from `slack()`). Calling start()
+// here delegates lifecycle ownership back to the extension that registered it.
+if (macRuntime) {
+  macRuntime.start().catch((err: unknown) => {
+    console.error("[server] Runtime connector failed to start:", err);
   });
-} else if (slack && !macDispatch) {
-  // Slack tokens present but no router (no-GitHub dev fallback) — nothing to
-  // dispatch to. The host/classifier need a GitHub platform to assemble.
-  console.log("[server] Slack disabled (no router — set GitHub App secrets to enable the dispatch pipeline)");
 } else {
-  console.log("[server] Slack disabled (set SLACK_BOT_TOKEN + SLACK_APP_TOKEN to enable)");
+  console.log("[server] No runtime connectors configured (set SLACK_BOT_TOKEN + SLACK_APP_TOKEN to enable Slack)");
 }

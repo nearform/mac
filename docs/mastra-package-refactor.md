@@ -42,10 +42,12 @@ consuming **registered** agent instances; the deterministic dispatch router.
 - **Guarded agent proxy: NOT implemented.** The injected agent registry returns live agents by
   property/`byId`; it does not throw on accessing an id outside `requiredAgents`. The
   "honest tradeoff" paragraph describing a throwing proxy is aspirational.
-- **Skills: intentionally out of scope.** Per Phase 5a, the dormant root `/skills` was never
-  adopted; there is no skill loader and no `skills/` asset dir in any package. Ignore every
-  "Skill loader", `skills: ["pr-review"]`, and `skills/**/SKILL.md` reference below — only
-  `prompts/` and `agent-context/` exist. Revisit only if a real skill consumer appears.
+- **Skills: IMPLEMENTED (supersedes "intentionally out of scope").** Phase 5a noted that the
+  dormant root `/skills` was never adopted, but skills were subsequently added. The
+  `packages/mac-agent-workflows` package now ships a `skills/` container and a
+  `skillsLocation()` loader (`src/loaders/skills.ts`). Per-step skill scoping is wired through
+  `WorkspaceFactory.create({ skills })` in `apps/server/src/mastra/workspace.ts`. Override the
+  skills container via `MAC_SKILLS_DIR` (cwd-relative path to a custom skills container).
 
 **Deferred phases (named, not started):**
 - **Phase 9 (MCP): manifest only.** `buildMcpSurface` computes a gated surface manifest (tested),
@@ -1508,7 +1510,7 @@ Context checkpoint:
 
 Goal: move the *currently inlined* instruction strings into markdown behind a loader, **without changing what any agent sees**. This is the risky part and is isolated so a behavior change can't hide among packaging churn. It happens in-app, before any package move.
 
-Important: the root `/prompts/*.md` and `/skills/**` directories **are not used today** — every agent inlines its instructions and only `/agent-context/*.md` is read at runtime. Do **not** adopt that dormant content as-is; it was never validated against the live agents and may not match. Externalize only what is actually inlined now.
+Important (historical note): when Phase 5a was written, the root `/prompts/*.md` and `/skills/**` directories were dormant. Both are now active: `skills/` lives in `packages/mac-agent-workflows` with a working loader; `prompts/` provides per-agent markdown loaded by `PromptResolver`. This phase description is retained as design history.
 
 Tasks:
 
@@ -1745,7 +1747,7 @@ Still open:
 
 Resolved (see "Implementation Status & Reconciliation" for shipped behavior):
 
-- **Skills:** intentionally NOT adopted. No skill loader or `skills/` assets in any package; only `prompts/` and `agent-context/`. No separate skill bundle.
+- **Skills:** IMPLEMENTED. `packages/mac-agent-workflows` ships a `skills/` container and `src/loaders/skills.ts`; per-step scoping flows through `WorkspaceFactory.create({ skills })`. Override with `MAC_SKILLS_DIR`. See the "Implementation Status" section above.
 - **`@lastlight/github` backward compatibility:** none — renamed in place to `@nearform/mac-github`, no alias kept.
 - **Data-driven classifier:** DONE. The classifier prompt is assembled from the merged intent catalogue, so `extraIntents` / intent-keyed `overrideTargets` are live.
 

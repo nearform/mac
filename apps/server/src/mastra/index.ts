@@ -87,6 +87,8 @@ interface MacPresetSlice {
   apiRoutes: ApiRoute[];
   /** The single router (always assembled by createMacApp). */
   dispatch: DispatchFn;
+  /** Long-running connectors (e.g. Slack Socket Mode). Call start() after the HTTP server is up. */
+  runtime?: { start(): Promise<void>; stop(): Promise<void> };
 }
 
 async function buildPreset(deps: {
@@ -124,10 +126,9 @@ async function buildPreset(deps: {
             }),
           ]
         : []),
-      // Passing slack() makes slackCapabilities available so pr-review can post
-      // to the shared client. We IGNORE `mac.runtime` — the startSlackConnector
-      // in server.ts still owns the Socket Mode lifecycle (and sets the shared
-      // client postMessage uses); starting mac.runtime too would double-start it.
+      // Passing slack() registers slackCapabilities (so pr-review can post to the
+      // shared client) and wires the Socket Mode connector into mac.runtime.
+      // server.ts calls mac.runtime.start() after the HTTP server is listening.
       ...(sc ? [slack(sc)] : []),
     ],
     agents: [
@@ -163,6 +164,7 @@ async function buildPreset(deps: {
     workflows: mac.workflows,
     apiRoutes: mac.apiRoutes,
     dispatch: mac.dispatch,
+    runtime: mac.runtime,
   };
 }
 
@@ -224,6 +226,7 @@ const preset = await buildPreset({ workspaceFactory, chatAgent, interactive, log
  * even without GitHub, so a Slack-only dev boot still routes to the chat agent.
  */
 export const macDispatch = preset.dispatch;
+export const macRuntime = preset.runtime;
 
 export const mastra = new Mastra({
   // Composite store (per Mastra's observability docs): operational domains
