@@ -232,7 +232,7 @@ async function callOpenrouter(
     headers: {
       "content-type": "application/json",
       authorization: `Bearer ${apiKey}`,
-      "HTTP-Referer": "https://github.com/cliftonc/lastlight",
+      "HTTP-Referer": "https://github.com/nearform/mac",
       "X-Title": "MAC",
     },
     body: JSON.stringify({
