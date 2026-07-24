@@ -24,8 +24,8 @@ importers:
   apps/server:
     dependencies:
       '@hono/node-server':
-        specifier: ^1.19.14
-        version: 1.19.14(hono@4.12.27)
+        specifier: ^2.0.10
+        version: 2.0.10(hono@4.12.27)
       '@mastra/core':
         specifier: ^1.41.0
         version: 1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)
@@ -34,7 +34,7 @@ importers:
         version: 1.4.1(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))
       '@mastra/hono':
         specifier: ^1.4.24
-        version: 1.4.24(@hono/node-server@1.19.14(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(hono@4.12.27)(zod@4.4.3)
+        version: 1.4.24(@hono/node-server@2.0.10(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(hono@4.12.27)(zod@4.4.3)
       '@mastra/libsql':
         specifier: ^1.12.1
         version: 1.12.1(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))
@@ -80,7 +80,7 @@ importers:
         version: 22.19.19
       mastra:
         specifier: ^1.12.2
-        version: 1.12.2(@hono/node-server@1.19.14(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(rxjs@7.8.2)(typescript@5.9.3)(zod@4.4.3)
+        version: 1.12.2(@hono/node-server@2.0.10(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(rxjs@7.8.2)(typescript@5.9.3)(zod@4.4.3)
       tsx:
         specifier: ^4.19.2
         version: 4.22.3
@@ -893,9 +893,15 @@ packages:
   '@expo/sudo-prompt@9.3.2':
     resolution: {integrity: sha512-HHQigo3rQWKMDzYDLkubN5WQOYXJJE2eNqIQC2axC2iO3mHdwnIR7FgZVvHWtBwAdzBgAP0ECp8KqS8TiMKvgw==}
 
-  '@hono/node-server@1.19.14':
-    resolution: {integrity: sha512-GwtvgtXxnWsucXvbQXkRgqksiH2Qed37H9xHZocE5sA3N8O8O8/8FA3uclQXxXVzc9XBZuEOMK7+r02FmSpHtw==}
+  '@hono/node-server@1.19.15':
+    resolution: {integrity: sha512-Za2ai6TLdKjUvnur+eenO6nuYYipVAEhyCAdaV8IRvmU9kK8crOZUSYvIXn72E4f8fJqyAbpcJuTsYYmZp9Deg==}
     engines: {node: '>=18.14.1'}
+    peerDependencies:
+      hono: ^4
+
+  '@hono/node-server@2.0.10':
+    resolution: {integrity: sha512-ZcnNVhKTmyDJeg0UlnZjvM73JBsTAuhrH/J4fjwGOw59PwOW51r4J+p6CsKZWXdKSme4MFqU62CZMOsdDrU4CA==}
+    engines: {node: '>=20'}
     peerDependencies:
       hono: ^4
 
@@ -4410,13 +4416,17 @@ snapshots:
 
   '@expo/sudo-prompt@9.3.2': {}
 
-  '@hono/node-server@1.19.14(hono@4.12.27)':
+  '@hono/node-server@1.19.15(hono@4.12.27)':
     dependencies:
       hono: 4.12.27
 
-  '@hono/node-ws@1.3.1(@hono/node-server@1.19.14(hono@4.12.27))(hono@4.12.27)':
+  '@hono/node-server@2.0.10(hono@4.12.27)':
     dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.27)
+      hono: 4.12.27
+
+  '@hono/node-ws@1.3.1(@hono/node-server@2.0.10(hono@4.12.27))(hono@4.12.27)':
+    dependencies:
+      '@hono/node-server': 2.0.10(hono@4.12.27)
       hono: 4.12.27
       ws: 8.21.0
     transitivePeerDependencies:
@@ -4563,12 +4573,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@mastra/deployer@1.41.0(@hono/node-server@1.19.14(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(typescript@5.9.3)(zod@4.4.3)':
+  '@mastra/deployer@1.41.0(@hono/node-server@2.0.10(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(typescript@5.9.3)(zod@4.4.3)':
     dependencies:
       '@babel/core': 7.29.7
       '@babel/preset-typescript': 7.29.7(@babel/core@7.29.7)
       '@babel/traverse': 7.29.7
-      '@hono/node-ws': 1.3.1(@hono/node-server@1.19.14(hono@4.12.27))(hono@4.12.27)
+      '@hono/node-ws': 1.3.1(@hono/node-server@2.0.10(hono@4.12.27))(hono@4.12.27)
       '@mastra/core': 1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)
       '@mastra/server': 1.41.0(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(zod@4.4.3)
       '@optimize-lodash/rollup-plugin': 5.1.0(rollup@4.61.1)
@@ -4606,9 +4616,9 @@ snapshots:
       '@duckdb/node-api': 1.5.2-r.2
       '@mastra/core': 1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)
 
-  '@mastra/hono@1.4.24(@hono/node-server@1.19.14(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(hono@4.12.27)(zod@4.4.3)':
+  '@mastra/hono@1.4.24(@hono/node-server@2.0.10(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(hono@4.12.27)(zod@4.4.3)':
     dependencies:
-      '@hono/node-ws': 1.3.1(@hono/node-server@1.19.14(hono@4.12.27))(hono@4.12.27)
+      '@hono/node-ws': 1.3.1(@hono/node-server@2.0.10(hono@4.12.27))(hono@4.12.27)
       '@mastra/core': 1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)
       '@mastra/server': 1.41.0(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(zod@4.4.3)
       fetch-to-node: 2.1.0
@@ -4671,7 +4681,7 @@ snapshots:
 
   '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
     dependencies:
-      '@hono/node-server': 1.19.14(hono@4.12.27)
+      '@hono/node-server': 1.19.15(hono@4.12.27)
       ajv: 8.20.0
       ajv-formats: 3.0.1(ajv@8.20.0)
       content-type: 1.0.5
@@ -6462,14 +6472,14 @@ snapshots:
 
   markdown-table@3.0.4: {}
 
-  mastra@1.12.2(@hono/node-server@1.19.14(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(rxjs@7.8.2)(typescript@5.9.3)(zod@4.4.3):
+  mastra@1.12.2(@hono/node-server@2.0.10(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(rxjs@7.8.2)(typescript@5.9.3)(zod@4.4.3):
     dependencies:
       '@babel/parser': 7.29.7
       '@babel/types': 7.29.7
       '@clack/prompts': 1.5.1
       '@expo/devcert': 1.2.1
       '@mastra/core': 1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3)
-      '@mastra/deployer': 1.41.0(@hono/node-server@1.19.14(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(typescript@5.9.3)(zod@4.4.3)
+      '@mastra/deployer': 1.41.0(@hono/node-server@2.0.10(hono@4.12.27))(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))(typescript@5.9.3)(zod@4.4.3)
       '@mastra/loggers': 1.1.2(@mastra/core@1.41.0(ai@6.0.193(zod@4.4.3))(express@5.2.1)(rxjs@7.8.2)(zod@4.4.3))
       archiver: 7.0.1
       commander: 14.0.3
