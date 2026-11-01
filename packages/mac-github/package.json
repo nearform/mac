@@ -25,7 +25,7 @@
     "@nearform/mac": "workspace:*",
     "@octokit/auth-app": "^7.1.0",
     "octokit": "^5.0.5",
-    "zod": "^4.4.3"
+    "zod": "^4.6.6"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
